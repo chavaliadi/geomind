@@ -1,0 +1,112 @@
+/* App.css */
+.app {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+/* Header */
+.app-header {
+    background: linear-gradient(135deg, #0066ff 0%, #0052cc 100%);
+    color: white;
+    padding: 32px 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.header-content h1 {
+    font-size: 32px;
+    font-weight: 800;
+    margin-bottom: 8px;
+}
+
+.header-content p {
+    font-size: 14px;
+    opacity: 0.9;
+}
+
+/* Navigation */
+.app-nav {
+    background: white;
+    border-bottom: 1px solid #e5e5ea;
+    padding: 0 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.nav-tabs {
+    display: flex;
+    gap: 0;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.nav-tab {
+    padding: 16px 24px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 14px;
+    color: #666;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.nav-tab:hover {
+    color: #0066ff;
+    background: #f8f9fa;
+}
+
+.nav-tab.active {
+    color: #0066ff;
+    border-bottom-color: #0066ff;
+}
+
+/* Main Content */
+.app-main {
+    flex: 1;
+    padding: 24px;
+    max-width: 1400px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+/* Footer */
+.app-footer {
+    background: white;
+    border-top: 1px solid #e5e5ea;
+    padding: 16px 24px;
+    text-align: center;
+    color: #666;
+    font-size: 12px;
+    margin-top: auto;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .app-header {
+        padding: 16px;
+    }
+
+    .header-content h1 {
+        font-size: 24px;
+    }
+
+    .nav-tabs {
+        overflow-x: auto;
+        gap: 4px;
+    }
+
+    .nav-tab {
+        padding: 12px 16px;
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
+    .app-main {
+        padding: 16px;
+    }
+}
