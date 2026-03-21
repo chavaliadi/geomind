@@ -62,5 +62,9 @@ venv/
 env/
 .venv
 
+# ML — model binaries are reproducible via train.py, don't commit them
+ml/models/
+ml/__pycache__/
+
 # Webpack
 webpackrc.js

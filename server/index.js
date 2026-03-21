@@ -1,9 +1,15 @@
 const express = require("express");
 const { Pool } = require("pg");
+const cors = require("cors");
 require("dotenv").config();
 
 const app = express();
-app.use(express.json());
+app.use(cors({
+  origin: ["http://localhost:3001", "http://localhost:3000"],
+  methods: ["GET", "POST", "DELETE"],
+  allowedHeaders: ["Content-Type"],
+}));
+app.use(express.json({ limit: "10kb" }));
 
 console.log("DATABASE_URL:", process.env.DATABASE_URL ? "Found" : "Missing");
 
@@ -55,23 +61,32 @@ app.get("/api/tasks", async (req, res) => {
 });
 
 app.post("/tasks", async (req, res) => {
-  const { text, priority } = req.body;
-  if (!text) {
+  const { text, priority, category_override } = req.body;
+  if (!text || typeof text !== "string" || text.trim().length === 0) {
     return res.status(400).json({ error: "Text is required" });
+  }
+  if (text.trim().length > 200) {
+    return res.status(400).json({ error: "Task text must be 200 characters or less" });
   }
 
   // Validate priority if provided
   const validPriorities = ["high", "medium", "low"];
   const finalPriority = priority && validPriorities.includes(priority) ? priority : "medium";
 
+  // Use category_override if provided and valid, otherwise auto-categorize
+  const validCategories = ["general", "grocery", "pharmacy", "clothing"];
   let category = "general";
-  const t = text.toLowerCase();
-  if (t.includes("shirt") || t.includes("clothes") || t.includes("dress"))
-    category = "clothing";
-  else if (t.includes("apple") || t.includes("milk") || t.includes("fruit"))
-    category = "grocery";
-  else if (t.includes("medicine") || t.includes("tablet"))
-    category = "pharmacy";
+  if (category_override && validCategories.includes(category_override)) {
+    category = category_override;
+  } else {
+    const t = text.toLowerCase();
+    if (t.includes("shirt") || t.includes("clothes") || t.includes("dress") || t.includes("wear"))
+      category = "clothing";
+    else if (t.includes("apple") || t.includes("milk") || t.includes("fruit") || t.includes("vegetable") || t.includes("grocery"))
+      category = "grocery";
+    else if (t.includes("medicine") || t.includes("tablet") || t.includes("pharmacy"))
+      category = "pharmacy";
+  }
 
   try {
     const result = await pool.query(

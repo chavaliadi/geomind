@@ -1,36 +1,15 @@
-/* Analytics.js */
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+/* Analytics.jsx */
+import React, { useState } from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import './Analytics.css';
 
-const API_URL = 'http://localhost:3000';
-
-export default function Analytics() {
-    const [tasks, setTasks] = useState([]);
-    const [loading, setLoading] = useState(false);
+// Receives tasks + loading from App.jsx — no independent fetching
+export default function Analytics({ tasks: propTasks = [], loading = false }) {
+    const tasks = propTasks;
     const [timeRange, setTimeRange] = useState('7d'); // 7d, 30d, all
     const [selectedCategory, setSelectedCategory] = useState('all');
 
     const CATEGORIES = ['all', 'grocery', 'pharmacy', 'clothing', 'general'];
-
-    const fetchTasks = async () => {
-        try {
-            setLoading(true);
-            const response = await axios.get(`${API_URL}/api/tasks`);
-            setTasks(response.data || []);
-        } catch (error) {
-            console.error('Error fetching tasks:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchTasks();
-        const interval = setInterval(fetchTasks, 30000);
-        return () => clearInterval(interval);
-    }, []);
 
     // Filter tasks by date range
     const getFilteredTasks = () => {

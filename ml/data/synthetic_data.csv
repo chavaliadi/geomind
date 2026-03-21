@@ -1,0 +1,400 @@
+text,category,source
+buy milk,grocery,synthetic
+get vegetables,grocery,synthetic
+need bread,grocery,synthetic
+pick up eggs,grocery,synthetic
+grab some fruits,grocery,synthetic
+buy rice,grocery,synthetic
+get sugar,grocery,synthetic
+need cooking oil,grocery,synthetic
+buy flour,grocery,synthetic
+get cheese,grocery,synthetic
+pick up butter,grocery,synthetic
+need yogurt,grocery,synthetic
+buy tea,grocery,synthetic
+get coffee,grocery,synthetic
+need dal,grocery,synthetic
+buy onions,grocery,synthetic
+get tomatoes,grocery,synthetic
+pick up bananas,grocery,synthetic
+need oranges,grocery,synthetic
+buy apples,grocery,synthetic
+get mangoes,grocery,synthetic
+need potatoes,grocery,synthetic
+buy pulses,grocery,synthetic
+get snacks,grocery,synthetic
+need biscuits,grocery,synthetic
+buy juice,grocery,synthetic
+get water bottles,grocery,synthetic
+need cereal,grocery,synthetic
+buy pasta,grocery,synthetic
+get noodles,grocery,synthetic
+need to pick up some groceries on the way home,grocery,synthetic
+want to buy fresh vegetables for tonight's dinner,grocery,synthetic
+need to restock some fruits and dairy items,grocery,synthetic
+going to the supermarket to grab essentials,grocery,synthetic
+picking up weekly groceries from the store,grocery,synthetic
+need to buy some snacks and drinks for the weekend,grocery,synthetic
+planning to get vegetables and fruits from the market,grocery,synthetic
+quick grocery run for bread and eggs,grocery,synthetic
+need to buy some cooking ingredients for the week,grocery,synthetic
+grabbing a few items from the grocery store after work,grocery,synthetic
+need to visit the supermarket for household supplies,grocery,synthetic
+picking up some fresh produce and dairy products today,grocery,synthetic
+want to shop for vegetables and grains at the market,grocery,synthetic
+need to restock my pantry with dry goods and spices,grocery,synthetic
+going to buy fruits vegetables and some packaged food,grocery,synthetic
+need to pick up a few things from the nearby store like milk bread and eggs,grocery,synthetic
+planning a big grocery run this weekend to stock up for the month,grocery,synthetic
+want to grab some fresh vegetables fruits and maybe some yogurt from the market,grocery,synthetic
+need to buy all the ingredients for a recipe I'm planning to cook this evening,grocery,synthetic
+I've been running low on all the basics like rice lentils cooking oil and spices so need to shop,grocery,synthetic
+planning to visit the local market to buy seasonal vegetables fruits and some household supplies,grocery,synthetic
+I need to buy vegetables tomatoes onions and some dairy items like milk curd and paneer for cooking this week,grocery,synthetic
+my kitchen supplies are running low and I need to stock up on rice wheat flour lentils and cooking essentials,grocery,synthetic
+want to make a big batch of meals for the week so need all the fresh ingredients from the grocery store today,grocery,synthetic
+I'm planning a dinner party and need to buy a lot of groceries including vegetables fruits drinks and snacks for everyone,grocery,synthetic
+need to do a full grocery run because I've been too busy to shop and now I've run out of almost everything at home,grocery,synthetic
+heading to the supermarket to pick up random things but definitely need vegetables milk bread and some household cleaning items,grocery,synthetic
+I want to stock up on healthy snacks fruits and protein-rich foods from the store since I've started eating healthier,grocery,synthetic
+need to buy everything from fresh produce to packaged goods and toiletries from the large supermarket near my area today,grocery,synthetic
+buy medicine,pharmacy,synthetic
+need tablets,pharmacy,synthetic
+pick up prescription,pharmacy,synthetic
+get painkillers,pharmacy,synthetic
+need cough syrup,pharmacy,synthetic
+buy vitamins,pharmacy,synthetic
+get antibiotics,pharmacy,synthetic
+need antacids,pharmacy,synthetic
+buy bandages,pharmacy,synthetic
+get eye drops,pharmacy,synthetic
+need insulin,pharmacy,synthetic
+buy sanitizer,pharmacy,synthetic
+get face mask,pharmacy,synthetic
+need thermometer,pharmacy,synthetic
+buy hand wash,pharmacy,synthetic
+need to pick up some medicine from the pharmacy,pharmacy,synthetic
+going to get my prescription filled at the chemist,pharmacy,synthetic
+need to buy some vitamins and health supplements,pharmacy,synthetic
+picking up tablets my doctor prescribed yesterday,pharmacy,synthetic
+need to go to the pharmacy for some cold medicine,pharmacy,synthetic
+running out of my regular medication need to refill,pharmacy,synthetic
+going to get some first aid supplies from the pharmacy,pharmacy,synthetic
+need to buy some pain relief tablets and antiseptic,pharmacy,synthetic
+picking up allergy medicine from the drug store nearby,pharmacy,synthetic
+need vitamins supplements and some basic medicines from the pharmacy,pharmacy,synthetic
+I've been sick for a few days and need to go to the pharmacy to pick up some medicines tablets and cough syrup,pharmacy,synthetic
+running very low on my regular prescribed medication and need to refill it from the chemist before I run out completely,pharmacy,synthetic
+need to visit the pharmacy to get antibiotics prescribed by my doctor along with some vitamin supplements and pain relief,pharmacy,synthetic
+my whole family is unwell and I need to pick up multiple medicines tablets syrups and some health essentials from the pharmacy,pharmacy,synthetic
+I have a doctor's appointment soon and they mentioned I'd need to get a few prescription medicines filled at the nearby pharmacy,pharmacy,synthetic
+the doctor prescribed several medications after my checkup and I need to collect them from the pharmacy along with some supplements,pharmacy,synthetic
+I've been managing a chronic condition and my monthly supply of medication is running out so I need to visit the pharmacy urgently,pharmacy,synthetic
+need to pick up prescription refill for blood pressure medicine along with vitamins and a few first aid supplies from the chemist,pharmacy,synthetic
+going to the pharmacy to stock up on all my regular medications since I'll be traveling next week and won't have easy access,pharmacy,synthetic
+need to collect several items from the pharmacy including prescribed tablets bandages antiseptic cream and health monitoring supplies,pharmacy,synthetic
+buy a shirt,clothing,synthetic
+need new jeans,clothing,synthetic
+get shoes,clothing,synthetic
+buy kurta,clothing,synthetic
+need a jacket,clothing,synthetic
+get formal wear,clothing,synthetic
+buy dress,clothing,synthetic
+need sandals,clothing,synthetic
+get t-shirt,clothing,synthetic
+buy trousers,clothing,synthetic
+need socks,clothing,synthetic
+buy leggings,clothing,synthetic
+get ethnic wear,clothing,synthetic
+need a saree,clothing,synthetic
+buy sneakers,clothing,synthetic
+need to buy some new clothes for the upcoming festival,clothing,synthetic
+going shopping for new shoes and a couple of shirts,clothing,synthetic
+want to pick up a nice outfit for an event next week,clothing,synthetic
+need to buy formal clothes for the job interview,clothing,synthetic
+planning to shop for summer clothes at the mall today,clothing,synthetic
+need to get new footwear as my old ones are worn out,clothing,synthetic
+going to the clothing store to pick up some casuals,clothing,synthetic
+want to buy ethnic wear for the wedding next month,clothing,synthetic
+need to shop for some comfortable everyday clothing,clothing,synthetic
+planning to get new gym clothes and sports shoes today,clothing,synthetic
+I need to buy a complete outfit for the office party including formal shirt trousers and good shoes to match,clothing,synthetic
+going shopping for a new wardrobe because most of my old clothes don't fit anymore and I need both casuals and formals,clothing,synthetic
+want to buy ethnic wear including a kurta and dhoti for the upcoming festival celebration happening next weekend,clothing,synthetic
+need to shop for a gift for my friend and thought I'd get them a nice shirt or dress from the clothing store nearby,clothing,synthetic
+planning to buy winter clothing including warm jackets sweaters and thermal wear before the cold season gets worse,clothing,synthetic
+I'm attending a wedding next month and need to buy a complete set of traditional clothes including the accessories and footwear,clothing,synthetic
+need to go to the clothing store to buy casual everyday wear since I haven't updated my wardrobe in almost a year now,clothing,synthetic
+going to shop for new sportswear including track pants shorts and comfortable running shoes for my morning workout sessions,clothing,synthetic
+want to get some new office wear including button-down shirts formal pants and a good pair of leather shoes for work,clothing,synthetic
+need to buy several sets of clothing for my upcoming trip including comfortable travel wear and slightly formal options for meetings,clothing,synthetic
+run some errands,general,synthetic
+go out for a bit,general,synthetic
+need to buy something,general,synthetic
+head out nearby,general,synthetic
+get something done,general,synthetic
+need to pick up a few things,general,synthetic
+going out to handle some tasks,general,synthetic
+need to go somewhere close by,general,synthetic
+want to get something from near here,general,synthetic
+need to stop at a store,general,synthetic
+have to run a quick errand nearby,general,synthetic
+need to grab a few things,general,synthetic
+going to pick something up,general,synthetic
+need to step out for a bit,general,synthetic
+have to get something done today,general,synthetic
+I need to step out and take care of a few things in the area,general,synthetic
+planning to run some errands nearby and get a few tasks done,general,synthetic
+need to go to a store nearby but haven't decided what to get yet,general,synthetic
+want to complete a few pending tasks before the day ends,general,synthetic
+need to step out and handle something before it gets too late,general,synthetic
+going out to take care of some things I've been putting off for a while,general,synthetic
+need to pick up something on my way but not sure exactly what I need,general,synthetic
+want to get a few things sorted out today while I'm near the market,general,synthetic
+planning to visit a nearby place and handle a couple of pending tasks,general,synthetic
+need to go out and complete some work before returning home later,general,synthetic
+I've been putting off several small tasks and need to go out today to finally get them all done in one trip if possible,general,synthetic
+need to head out for a bit to take care of something but I'm still figuring out exactly what I'm going to get or do,general,synthetic
+planning to run a bunch of errands today and want to be efficient about it by grouping the stops close to each other,general,synthetic
+I have a few things I need to get done today and most of them involve stopping by different places in the same area,general,synthetic
+want to step out and handle some pending stuff that's been on my to-do list for a while now hopefully get it all done today,general,synthetic
+need to go out and get something today but I'm not entirely sure what I'll end up picking up it depends on what's available,general,synthetic
+I'm going out to take care of a few mixed tasks which may include stopping at more than one kind of store or place,general,synthetic
+heading out to run some errands and get a few things sorted before the end of the day while I'm already in that part of town,general,synthetic
+need to visit a few places nearby to handle a mix of tasks some personal some household and maybe grab something to use later,general,synthetic
+I want to accomplish several small tasks today by going out once and making the most of the time rather than going multiple times,general,synthetic
+have to take care of a few things that are long overdue and today seems like a good day to finally go out and get them done,general,synthetic
+I'm not sure exactly what I need but I know I have to head out and take care of a few things around the area today,general,synthetic
+plan to head out and handle a bunch of mixed tasks including some shopping and other things that have been pending for days,general,synthetic
+need to step out and get some stuff done but I'll figure out the specifics once I'm actually out and about in the area,general,synthetic
+going to go out and handle everything I've been delaying all week including picking up items visiting places and completing tasks,general,synthetic
+need to buy grocery items for the week ahead,grocery,synthetic
+picking up daily essentials from the supermarket,grocery,synthetic
+heading to the store for some vegetables and milk,grocery,synthetic
+need to grab fruits and vegetables before the market closes,grocery,synthetic
+restock kitchen staples like salt sugar and oil,grocery,synthetic
+going to buy packaged food and some fresh produce,grocery,synthetic
+need to get bread butter and eggs from the store,grocery,synthetic
+picking up atta maida and other dry groceries,grocery,synthetic
+heading out to buy some seasonal fruits and vegetables,grocery,synthetic
+need grocery items including lentils rice and spices,grocery,synthetic
+want to buy snacks and beverages for a small gathering,grocery,synthetic
+picking up all the vegetables I need to cook this week,grocery,synthetic
+need to visit the supermarket before it closes tonight,grocery,synthetic
+want to buy healthy food items like oats nuts and seeds,grocery,synthetic
+heading to get my weekly groceries done quickly today,grocery,synthetic
+I need to restock the fridge with essentials including fruits vegetables dairy and some packaged goods for the week,grocery,synthetic
+going out to the local market to buy a wide variety of vegetables and fruits for cooking throughout the coming week,grocery,synthetic
+need to buy all the ingredients the recipe calls for including fresh vegetables spices and some other pantry staples,grocery,synthetic
+planning a big grocery shop this weekend to buy everything we need so we don't have to keep going back to the store repeatedly,grocery,synthetic
+I haven't bought groceries in two weeks so the pantry is completely empty and I need to buy absolutely everything from scratch,grocery,synthetic
+need to get medicine from chemist,pharmacy,synthetic
+heading to pharmacy to collect prescription,pharmacy,synthetic
+need to buy cough drops and throat lozenges,pharmacy,synthetic
+want to pick up some health supplements from chemist,pharmacy,synthetic
+need to get my blood pressure tablets refilled,pharmacy,synthetic
+going to get some antiseptic and bandages,pharmacy,synthetic
+want to buy a blood glucose testing kit,pharmacy,synthetic
+need to pick up allergy tablets and nasal spray,pharmacy,synthetic
+heading to the pharmacy for my monthly medication,pharmacy,synthetic
+need antibiotics and some multivitamins,pharmacy,synthetic
+want to get ointment for a skin condition,pharmacy,synthetic
+need to buy a digital thermometer and some medicine,pharmacy,synthetic
+picking up a prescription my doctor just sent in,pharmacy,synthetic
+need to restock my medicine cabinet with essentials,pharmacy,synthetic
+heading to the chemist to buy fever and pain medication,pharmacy,synthetic
+I've been prescribed several medicines after my hospital visit and need to collect them all from the nearby pharmacy today,pharmacy,synthetic
+running completely out of my daily medication and it's crucial I pick up the refill as soon as possible from the chemist,pharmacy,synthetic
+need to visit the pharmacy to get both prescription medicines and some over-the-counter supplements the doctor recommended,pharmacy,synthetic
+my elderly parent needs several medications and I need to go to the pharmacy to collect all their prescription medicines,pharmacy,synthetic
+I need to stock up on pharmacy essentials including medicines bandages antiseptic and a few health monitoring devices,pharmacy,synthetic
+need to buy casual shoes,clothing,synthetic
+want to get some new ethnic outfits,clothing,synthetic
+heading out to shop for winter clothes,clothing,synthetic
+need to buy a formal suit for an interview,clothing,synthetic
+want to pick up some sportswear today,clothing,synthetic
+going to the mall to buy new footwear,clothing,synthetic
+need to get a new handbag and accessories,clothing,synthetic
+want to update my wardrobe with new clothes,clothing,synthetic
+heading to clothing store for some formals,clothing,synthetic
+need to buy a few good-quality t-shirts and trousers,clothing,synthetic
+want to get new outfits for a family function,clothing,synthetic
+going to buy some comfortable warm winter wear,clothing,synthetic
+need a new saree for the upcoming wedding ceremony,clothing,synthetic
+want to shop for affordable everyday clothing items,clothing,synthetic
+heading to buy new sports shoes and gym clothing,clothing,synthetic
+I need to overhaul my entire wardrobe as most of my clothes are old worn out or don't fit me properly anymore,clothing,synthetic
+going out to buy an outfit for an important event next week and want to find something that fits well and looks good,clothing,synthetic
+need to shop for a complete ethnic outfit including a sherwani shoes and matching accessories for a wedding I'm attending,clothing,synthetic
+want to buy several sets of casual and formal clothing since I'm starting a new job and need appropriate office attire,clothing,synthetic
+heading to the mall to explore clothing options and hopefully find some good deals on formal and casual outfits today,clothing,synthetic
+I need to head out and do some things,general,synthetic
+want to step out and take care of pending work,general,synthetic
+going to go handle some stuff nearby,general,synthetic
+need to stop at a couple of places and get things done,general,synthetic
+have something to take care of before evening,general,synthetic
+going to move around and get things sorted,general,synthetic
+need to be somewhere close by for some tasks,general,synthetic
+have to take care of something before heading home,general,synthetic
+want to quickly pick something up from near here,general,synthetic
+need to go out and do a couple of things,general,synthetic
+going to take care of a few tasks I've been delaying,general,synthetic
+want to run some errands and then come back,general,synthetic
+have a few things to take care of today around town,general,synthetic
+need to do something productive nearby this afternoon,general,synthetic
+going out to handle stuff and see what comes up,general,synthetic
+need to step out and take care of several things that are all somewhat related but not easy to categorize into one type,general,synthetic
+I have a bunch of mixed tasks to handle today including visiting a few different kinds of places and picking up various items,general,synthetic
+going out to handle work that's been pending for a while and the tasks span different locations and types of items needed,general,synthetic
+I need to visit a few stores around the area today for a mix of different purposes and pick up various unrelated things,general,synthetic
+planning to go out and knock off everything on my errand list in one trip since I'm already going near that part of the city,general,synthetic
+buy mangoes and bananas from the fruit stall,grocery,synthetic
+need to pick up whole wheat bread and almond milk,grocery,synthetic
+going to get some lentils rice and cooking spices,grocery,synthetic
+need to buy cleaning supplies along with groceries,grocery,synthetic
+picking up fresh herbs and vegetables for cooking,grocery,synthetic
+want to buy some healthy protein packed food items,grocery,synthetic
+heading to supermarket to stock up for the holidays,grocery,synthetic
+need canned goods and packaged snacks from the store,grocery,synthetic
+going to buy all the vegetables needed for a curry,grocery,synthetic
+want to grab some cold drinks and fresh fruit today,grocery,synthetic
+picking up weekly supplies including grains and dairy,grocery,synthetic
+need to get a large quantity of vegetables and fruits,grocery,synthetic
+buying ingredients for baking including flour and sugar,grocery,synthetic
+need to get fresh produce and milk before the weekend,grocery,synthetic
+want to do a quick grocery run before cooking dinner,grocery,synthetic
+planning a large grocery haul for the entire family including dry goods fresh produce dairy snacks and beverages,grocery,synthetic
+need to go buy all the food items necessary for the dinner I'm hosting this weekend for a large group of friends,grocery,synthetic
+heading to the store to stock up on everything from vegetables and fruits to packaged snacks and cleaning essentials,grocery,synthetic
+need to restock all household food supplies after not shopping for over ten days and running out of nearly everything,grocery,synthetic
+I'm going to do a complete grocery run today buying everything from fresh vegetables and fruits to dry goods and dairy products,grocery,synthetic
+need specific prescription medicines my doctor ordered,pharmacy,synthetic
+heading to the medical store to buy tablets and syrup,pharmacy,synthetic
+want to pick up a pulse oximeter and some medication,pharmacy,synthetic
+need to buy some OTC medicine for stomach issues,pharmacy,synthetic
+going to the pharmacy to refill my regular medication,pharmacy,synthetic
+picking up some wound care supplies and antiseptic,pharmacy,synthetic
+need to buy vitamins and calcium supplements today,pharmacy,synthetic
+want to get my child's fever medicine from the chemist,pharmacy,synthetic
+need to stock up on basic medicines before traveling,pharmacy,synthetic
+heading to pharmacy for monthly prescription pickup,pharmacy,synthetic
+need some cough suppressant and throat soothing tablets,pharmacy,synthetic
+picking up medicine for cold flu and allergy symptoms,pharmacy,synthetic
+want to get some herbal supplements from the pharmacy,pharmacy,synthetic
+need to buy a blood pressure monitor and some tablets,pharmacy,synthetic
+going to get prescribed ointment and some vitamins,pharmacy,synthetic
+I need to go to the pharmacy to collect all the medications prescribed by my specialist after my recent medical checkup,pharmacy,synthetic
+running very low on important daily medications that I take regularly and urgently need to visit the pharmacy to restock,pharmacy,synthetic
+need to buy multiple types of medicine for different members of my family who are all experiencing various health issues,pharmacy,synthetic
+heading to the chemist to pick up both prescription items and some over-the-counter health products my family regularly uses,pharmacy,synthetic
+need to stock up on a wide range of pharmacy essentials before a long trip including prescription and non-prescription items,pharmacy,synthetic
+want to buy new casual clothes,clothing,synthetic
+need to shop for office formal wear,clothing,synthetic
+heading out to buy some summer dresses,clothing,synthetic
+want to get new gym shoes and shorts,clothing,synthetic
+going to buy accessories and matching clothes,clothing,synthetic
+need traditional attire for a festival,clothing,synthetic
+want to pick up jeans and a few tops,clothing,synthetic
+need to buy a light jacket for evenings,clothing,synthetic
+heading to clothing store for new wardrobe,clothing,synthetic
+want to get some affordable kurtas and pants,clothing,synthetic
+need new uniform related clothing for work,clothing,synthetic
+going to buy shoes bags and some formal attire,clothing,synthetic
+want to update wardrobe with trendy new pieces,clothing,synthetic
+need some nice clothes for the upcoming holiday,clothing,synthetic
+heading to buy clothes that fit properly after weight loss,clothing,synthetic
+I'm going shopping for a complete new wardrobe to start fresh with a mix of casual formal and ethnic options for all occasions,clothing,synthetic
+need to find the perfect outfit for a formal dinner party I'm attending next week and want to buy a complete matching set,clothing,synthetic
+going shopping for an entire outfit for my daughter's wedding including traditional clothing jewelry and matching accessories,clothing,synthetic
+want to buy several new sets of comfortable everyday clothes since I'm working from home now and need relaxed but neat options,clothing,synthetic
+need to do a full clothing haul for the winter season including warm jackets thermals sweaters boots and accessories for cold weather,clothing,synthetic
+have something to get done near here,general,synthetic
+need to go somewhere and pick up something,general,synthetic
+want to run an errand quickly today,general,synthetic
+going to handle a couple of things nearby,general,synthetic
+have tasks to finish before heading home,general,synthetic
+need to get something sorted out today,general,synthetic
+going to step out briefly to handle something,general,synthetic
+need to do a few things not too far away,general,synthetic
+want to get some stuff taken care of today,general,synthetic
+going to handle pending tasks in the area,general,synthetic
+need to go out and get a few things done,general,synthetic
+want to finish my to-do list by stepping out,general,synthetic
+going out to handle things I kept putting off,general,synthetic
+need to be out for a while taking care of tasks,general,synthetic
+have several things to pick up and return nearby,general,synthetic
+I have a list of things to take care of today that spans different categories and none of them clearly fall into one type,general,synthetic
+need to visit a few different locations around town today to pick up things and handle tasks of different kinds and purposes,general,synthetic
+planning to go out and accomplish many different things today most of which involve visiting places and picking up various items,general,synthetic
+want to step out and get everything on my to-do list done in one long trip to save time and trips later this week,general,synthetic
+going out to take care of a bunch of mixed responsibilities and tasks that have been piling up over the past few days,general,synthetic
+need to buy some ghee paneer and fresh vegetables for cooking,grocery,synthetic
+going to buy all the ingredients for making biryani this weekend,grocery,synthetic
+want to restock my fridge with fruits vegetables yogurt and dairy,grocery,synthetic
+picking up staples like rice lentils oil and spices from the store,grocery,synthetic
+heading to buy packaged snacks beverages and some fresh produce,grocery,synthetic
+need to get all the cooking essentials before hosting a family dinner,grocery,synthetic
+buy groceries,grocery,synthetic
+need vegetables and dairy,grocery,synthetic
+picking up dry goods and spices,grocery,synthetic
+want to get fresh produce,grocery,synthetic
+heading to market for essentials,grocery,synthetic
+need to do a grocery run,grocery,synthetic
+going to buy food supplies,grocery,synthetic
+picking up pantry staples,grocery,synthetic
+need to restock my kitchen,grocery,synthetic
+going supermarket for weekly shop,grocery,synthetic
+I need to buy a wide variety of groceries today to last for at least two weeks including all fresh and dry goods,grocery,synthetic
+want to do a massive grocery haul to stock up for the entire family before a long weekend when the stores will be closed,grocery,synthetic
+heading to the large hypermarket to buy all groceries cleaning supplies and other household essentials in a single trip,grocery,synthetic
+need to stock up on seasonal vegetables fruits imported goods and specialty items from the premium grocery store nearby,grocery,synthetic
+need to get pain relief medication from the drug store,pharmacy,synthetic
+heading to pick up prescribed tablets and ointment,pharmacy,synthetic
+want to buy health supplements and multivitamins,pharmacy,synthetic
+going to the chemist for fever medicine and fluids,pharmacy,synthetic
+need to refill my prescription at the pharmacy,pharmacy,synthetic
+picking up nasal spray and allergy medication,pharmacy,synthetic
+buy medicine,pharmacy,synthetic
+need prescription refill,pharmacy,synthetic
+get tablets from chemist,pharmacy,synthetic
+picking up health supplements,pharmacy,synthetic
+need eye drops and ointment,pharmacy,synthetic
+going to pharmacy for medication,pharmacy,synthetic
+need to collect prescribed drugs,pharmacy,synthetic
+pick up medicines before evening,pharmacy,synthetic
+I need to go to the pharmacy urgently to pick up a critical prescription that I absolutely cannot go without today,pharmacy,synthetic
+need to buy formal pants and a blazer for work,clothing,synthetic
+heading out to pick up some comfortable kurta pajamas,clothing,synthetic
+want to find nice party wear for the weekend celebration,clothing,synthetic
+going to buy school uniforms and everyday casual clothes,clothing,synthetic
+need new comfortable footwear for daily walking,clothing,synthetic
+picking up a winter coat and some sweaters today,clothing,synthetic
+buy clothes,clothing,synthetic
+need new shoes,clothing,synthetic
+pick up ethnic wear,clothing,synthetic
+get a new shirt,clothing,synthetic
+need formal trousers,clothing,synthetic
+going shopping for clothes,clothing,synthetic
+need new wardrobe items,clothing,synthetic
+picking up casual wear,clothing,synthetic
+I need to go shopping for a full set of new clothes to replace my worn-out wardrobe with quality options that last longer,clothing,synthetic
+need to do something nearby,general,synthetic
+going out for a bit,general,synthetic
+have to handle a task near here,general,synthetic
+want to step out and run an errand,general,synthetic
+need to go somewhere close to pick something up,general,synthetic
+going to do a couple of things and come back,general,synthetic
+need to sort out a few things before the day ends,general,synthetic
+heading out to take care of some unfinished business,general,synthetic
+want to get something done while I'm near this area,general,synthetic
+need to visit a place nearby for something,general,synthetic
+going out for errands,general,synthetic
+have tasks to complete,general,synthetic
+need to handle stuff,general,synthetic
+step out to do things,general,synthetic
+going to wrap up pending tasks,general,synthetic
+I have to handle a series of diverse tasks today that don't really fit neatly into any single category or store type,general,synthetic
+need to run errands all over the area today and not sure exactly what I'll end up picking up or doing at each stop,general,synthetic
+going out to take care of various small things that have been building up and need to get them all done in one outing,general,synthetic
+want to complete all my pending tasks in a single trip around the neighbourhood since I'm already going to be out today,general,synthetic
+have multiple things to handle today ranging from quick stops to longer tasks and I want to do it all in one go efficiently,general,synthetic

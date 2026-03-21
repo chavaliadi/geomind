@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   Animated,
   Modal,
+  RefreshControl,
 } from "react-native";
 import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
@@ -22,7 +23,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-const API_URL = "http://10.51.186.45:3000";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
 
 // Request notification permissions on app load
 const requestNotificationPermissions = async () => {
@@ -73,6 +74,7 @@ export default function HomeScreen() {
   const [stagingTasks, setStagingTasks] = useState<(ParsedTask & { priority: "high" | "medium" | "low" })[]>([]);
   const [isTracking, setIsTracking] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -105,7 +107,31 @@ export default function HomeScreen() {
   // Request notification permissions on app startup
   useEffect(() => {
     requestNotificationPermissions();
+    fetchTasksFromServer(); // U6: load existing tasks on startup
   }, []);
+
+  // U6: Fetch existing tasks from server
+  const fetchTasksFromServer = async (isRefresh = false) => {
+    if (isRefresh) setIsRefreshing(true);
+    try {
+      const res = await fetch(`${API_URL}/api/tasks`);
+      const data = await res.json();
+      const fetched: Task[] = data.map((t: any) => ({
+        id: String(t.id),
+        text: t.raw_text || t.text,
+        category: t.category,
+        isTriggered: t.status === 'triggered',
+        priority: t.priority || 'medium',
+        isSelected: t.status !== 'triggered',
+      }));
+      setTaskList(fetched);
+      if (isRefresh) addLog(`🔄 Refreshed: ${fetched.length} tasks loaded`);
+    } catch (err) {
+      addLog(`❌ Could not load tasks from server`);
+    } finally {
+      if (isRefresh) setIsRefreshing(false);
+    }
+  };
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -455,6 +481,13 @@ export default function HomeScreen() {
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => fetchTasksFromServer(true)}
+            tintColor={COLORS.primary}
+          />
+        }
       >
         {/* Header Section */}
         <View style={{ marginTop: 12, marginBottom: 24 }}>
@@ -903,16 +936,22 @@ export default function HomeScreen() {
 
         {/* Logs Section */}
         <View>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "700",
-              color: COLORS.text,
-              marginBottom: 12,
-            }}
-          >
-            📊 Activity Log
-          </Text>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "700",
+                color: COLORS.text,
+              }}
+            >
+              📊 Activity Log
+            </Text>
+            {logs.length > 0 && (
+              <TouchableOpacity onPress={() => setLogs([])}>
+                <Text style={{ fontSize: 12, color: COLORS.textSecondary, fontWeight: "600" }}>Clear</Text>
+              </TouchableOpacity>
+            )}
+          </View>
           <View
             style={{
               backgroundColor: "#1A1A1A",

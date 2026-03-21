@@ -71,7 +71,17 @@ const Dashboard = ({ tasks, stats, loading }) => {
                 <div className="recent-tasks-section">
                     <h2>Recent Tasks</h2>
                     {loading ? (
-                        <div className="loading">Loading tasks...</div>
+                        <div className="skeleton-list">
+                            {[1, 2, 3, 4].map(i => (
+                                <div key={i} className="skeleton-task">
+                                    <div className="skeleton-circle" />
+                                    <div className="skeleton-lines">
+                                        <div className="skeleton-line skeleton-line-long" />
+                                        <div className="skeleton-line skeleton-line-short" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     ) : tasks.length === 0 ? (
                         <div className="empty-state">
                             <p>📭 No tasks yet. Create your first reminder!</p>

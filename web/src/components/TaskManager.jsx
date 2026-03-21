@@ -1,28 +1,30 @@
 /* TaskManager.js */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Trash2, Edit2, Plus } from 'lucide-react';
+import { Trash2, Plus } from 'lucide-react';
 import './TaskManager.css';
 
-const API_URL = 'http://localhost:3000';
-
-export default function TaskManager() {
+// Uses apiUrl + onTasksUpdate + showToast props from App.jsx
+export default function TaskManager({ onTasksUpdate, apiUrl, showToast }) {
+    const API_URL = apiUrl || process.env.REACT_APP_API_URL || 'http://localhost:3000';
+    const notify = showToast || ((msg, type) => type === 'error' ? console.error(msg) : console.log(msg));
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(false);
     const [formOpen, setFormOpen] = useState(false);
-    const [editingId, setEditingId] = useState(null);
     const [formData, setFormData] = useState({
         text: '',
         priority: 'medium',
         category: 'general',
     });
     const [selectedTasks, setSelectedTasks] = useState(new Set());
+    const [pendingDeleteId, setPendingDeleteId] = useState(null);
+    const [showBulkConfirm, setShowBulkConfirm] = useState(false);
 
     const CATEGORIES = ['general', 'grocery', 'pharmacy', 'clothing'];
     const PRIORITIES = ['high', 'medium', 'low'];
 
     // Fetch tasks
-    const fetchTasks = async () => {
+    const fetchTasks = useCallback(async () => {
         try {
             setLoading(true);
             const response = await axios.get(`${API_URL}/api/tasks`);
@@ -32,18 +34,17 @@ export default function TaskManager() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [API_URL]);
 
     useEffect(() => {
         fetchTasks();
         const interval = setInterval(fetchTasks, 10000);
         return () => clearInterval(interval);
-    }, []);
+    }, [fetchTasks]);
 
     // Reset form
     const resetForm = () => {
         setFormData({ text: '', priority: 'medium', category: 'general' });
-        setEditingId(null);
         setFormOpen(false);
     };
 
@@ -51,7 +52,7 @@ export default function TaskManager() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!formData.text.trim()) {
-            alert('Task text is required');
+            notify('Task text is required', 'error');
             return;
         }
 
@@ -67,15 +68,16 @@ export default function TaskManager() {
             // Add to local state
             setTasks([response.data, ...tasks]);
             resetForm();
+            if (onTasksUpdate) onTasksUpdate(); // sync App.jsx
+            notify('Task created successfully!', 'success');
         } catch (error) {
-            alert('Error creating task: ' + error.message);
+            notify('Error creating task: ' + error.message, 'error');
         }
     };
 
     // Delete task
     const handleDelete = async (taskId) => {
-        if (!window.confirm('Delete this task?')) return;
-
+        setPendingDeleteId(null);
         try {
             await axios.delete(`${API_URL}/api/tasks/${taskId}`);
             setTasks(tasks.filter(t => t.id !== taskId));
@@ -84,24 +86,27 @@ export default function TaskManager() {
                 newSet.delete(taskId);
                 return newSet;
             });
+            if (onTasksUpdate) onTasksUpdate(); // sync App.jsx
+            notify('Task deleted.', 'success');
         } catch (error) {
-            alert('Error deleting task: ' + error.message);
+            notify('Error deleting task: ' + error.message, 'error');
         }
     };
 
     // Bulk delete
     const handleBulkDelete = async () => {
         if (selectedTasks.size === 0) return;
-        if (!window.confirm(`Delete ${selectedTasks.size} tasks?`)) return;
-
+        setShowBulkConfirm(false);
         try {
             for (const taskId of selectedTasks) {
                 await axios.delete(`${API_URL}/api/tasks/${taskId}`);
             }
             setTasks(tasks.filter(t => !selectedTasks.has(t.id)));
             setSelectedTasks(new Set());
+            if (onTasksUpdate) onTasksUpdate(); // sync App.jsx
+            notify(`${selectedTasks.size} tasks deleted.`, 'success');
         } catch (error) {
-            alert('Error deleting tasks: ' + error.message);
+            notify('Error deleting tasks: ' + error.message, 'error');
         }
     };
 
@@ -151,9 +156,17 @@ export default function TaskManager() {
                 <h2>Manage Tasks</h2>
                 <div className="header-actions">
                     {selectedTasks.size > 0 && (
-                        <button className="btn btn-danger" onClick={handleBulkDelete}>
-                            Delete Selected ({selectedTasks.size})
-                        </button>
+                        showBulkConfirm ? (
+                            <div className="inline-confirm">
+                                <span>Delete {selectedTasks.size} tasks?</span>
+                                <button className="btn btn-danger btn-sm" onClick={handleBulkDelete}>Yes, delete</button>
+                                <button className="btn btn-secondary btn-sm" onClick={() => setShowBulkConfirm(false)}>Cancel</button>
+                            </div>
+                        ) : (
+                            <button className="btn btn-danger" onClick={() => setShowBulkConfirm(true)}>
+                                Delete Selected ({selectedTasks.size})
+                            </button>
+                        )
                     )}
                     <button className="btn btn-primary" onClick={() => setFormOpen(!formOpen)}>
                         <Plus size={18} />
@@ -253,7 +266,7 @@ export default function TaskManager() {
                                             onChange={() => toggleTaskSelection(task.id)}
                                         />
                                     </td>
-                                    <td className="task-text-col">{task.text}</td>
+                                    <td className="task-text-col">{task.raw_text || task.text}</td>
                                     <td>
                                         <span
                                             className="badge"
@@ -279,13 +292,21 @@ export default function TaskManager() {
                                         {new Date(task.created_at).toLocaleDateString()} {new Date(task.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </td>
                                     <td className="actions-col">
-                                        <button
-                                            className="btn-icon delete"
-                                            onClick={() => handleDelete(task.id)}
-                                            title="Delete"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
+                                        {pendingDeleteId === task.id ? (
+                                            <div className="inline-confirm">
+                                                <span>Delete?</span>
+                                                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(task.id)}>Yes</button>
+                                                <button className="btn btn-secondary btn-sm" onClick={() => setPendingDeleteId(null)}>No</button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                className="btn-icon delete"
+                                                onClick={() => setPendingDeleteId(task.id)}
+                                                title="Delete"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

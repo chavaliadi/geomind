@@ -1,26 +1,27 @@
 /* LocationSimulator.js */
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
 import { MapPin } from 'lucide-react';
 import './LocationSimulator.css';
 
-const API_URL = 'http://localhost:3000';
-
-export default function LocationSimulator() {
+// Uses apiUrl prop from App.jsx
+export default function LocationSimulator({ apiUrl, showToast }) {
+    const API_URL = apiUrl || process.env.REACT_APP_API_URL || 'http://localhost:3000';
+    const notify = showToast || ((msg) => console.log(msg));
     const [location, setLocation] = useState({
         lat: 25.432247,
-        lng: -81.770706,
+        lng: 81.770706,
     });
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(false);
     const [preset, setPreset] = useState('default');
 
-    // Preset locations (in reality these would be around actual locations from the database)
+    // Preset locations — Prayagraj, India (matching your seeded places data)
     const PRESETS = {
-        default: { name: 'Default (Miami Area)', lat: 25.432247, lng: -81.770706 },
-        downtown: { name: 'Downtown', lat: 25.761681, lng: -80.191788 },
-        beacharea: { name: 'Beach Area', lat: 25.791830, lng: -80.130006 },
-        westside: { name: 'West Side', lat: 25.755088, lng: -80.354003 },
+        default: { name: 'Prayagraj (Test)', lat: 25.432247, lng: 81.770706 },
+        civil_lines: { name: 'Civil Lines', lat: 25.455800, lng: 81.836400 },
+        george_town: { name: 'George Town', lat: 25.444800, lng: 81.831900 },
+        naini: { name: 'Naini Area', lat: 25.381700, lng: 81.893900 },
     };
 
     const handleInputChange = (field, value) => {
@@ -41,7 +42,7 @@ export default function LocationSimulator() {
 
     const handleSimulate = async () => {
         if (!location.lat || !location.lng) {
-            alert('Please enter valid coordinates');
+            notify('Please enter valid coordinates', 'error');
             return;
         }
 
@@ -72,7 +73,7 @@ export default function LocationSimulator() {
 
     const handleGetCurrentLocation = () => {
         if (!navigator.geolocation) {
-            alert('Geolocation is not supported by your browser');
+            notify('Geolocation is not supported by your browser', 'error');
             return;
         }
 
@@ -83,9 +84,10 @@ export default function LocationSimulator() {
                     lng: position.coords.longitude,
                 });
                 setPreset('');
+                notify('Location captured from browser!', 'success');
             },
             (error) => {
-                alert(`Error getting location: ${error.message}`);
+                notify('Error getting location: ' + error.message, 'error');
             }
         );
     };
