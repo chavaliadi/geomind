@@ -1,0 +1,168 @@
+/* GeoMap.css — Phase 8B+ premium styles */
+.geomap-page {
+    display: flex;
+    height: calc(100vh - 190px);
+    min-height: 550px;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+    border: 1px solid rgba(0,0,0,0.07);
+}
+
+/* ── Sidebar ──────────────────────────────── */
+.geomap-sidebar {
+    width: 290px;
+    flex-shrink: 0;
+    background: white;
+    overflow-y: auto;
+    border-right: 1px solid #edf0f7;
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-section {
+    padding: 14px 16px;
+    border-bottom: 1px solid #f0f2f7;
+}
+
+.sidebar-title {
+    font-size: 11px;
+    font-weight: 800;
+    color: #8a9bb5;
+    margin: 0 0 11px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+
+/* Coords */
+.coord-row   { display: flex; gap: 8px; }
+.coord-group { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.coord-group label { font-size: 10px; color: #aaa; font-weight: 600; text-transform: uppercase; }
+.coord-group input {
+    padding: 7px 9px; border: 1.5px solid #e8ecf4; border-radius: 8px;
+    font-size: 12px; background: #f8f9ff; outline: none; width: 100%;
+}
+.coord-group input:focus { border-color: #0066ff; background: white; }
+
+/* Presets */
+.preset-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.chip {
+    padding: 4px 10px; background: #f0f4ff; color: #0066ff;
+    border: 1px solid #c7d7ff; border-radius: 20px;
+    font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+}
+.chip:hover { background: #0066ff; color: white; border-color: #0066ff; }
+
+/* GPS */
+.gps-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.btn-gps {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 12px; background: #f8f9ff;
+    border: 1.5px solid #e0e4ef; border-radius: 8px;
+    font-size: 12px; font-weight: 600; color: #555; cursor: pointer; transition: all 0.2s;
+}
+.btn-gps:hover { border-color: #0066ff; color: #0066ff; }
+.btn-gps.active { background: #e8fff5; border-color: #00b894; color: #00b894; }
+.gps-indicator { font-size: 11px; color: #00b894; animation: blink 1.2s infinite; font-weight: 600; }
+
+/* Radius */
+input[type="range"] { width: 100%; accent-color: #0066ff; margin-bottom: 6px; }
+.radius-label { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+
+/* Scan */
+.btn-scan {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 11px;
+    background: linear-gradient(135deg, #0066ff, #0044cc);
+    color: white; border: none; border-radius: 10px;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    box-shadow: 0 3px 10px rgba(0,102,255,0.3); transition: all 0.2s;
+}
+.btn-scan:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(0,102,255,0.4); }
+.btn-scan:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+.scan-hint { font-size: 11px; color: #bbb; margin: 8px 0 0; text-align: center; line-height: 1.4; }
+
+/* Trip Plan */
+.trip-plan { background: #f8fcff; }
+
+.trip-stop {
+    padding: 10px 0;
+    border-bottom: 1px solid #edf0f7;
+}
+.trip-stop:last-child { border-bottom: none; }
+.trip-stop.no-store { opacity: 0.55; }
+
+.stop-header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 6px; }
+
+.stop-number {
+    width: 26px; height: 26px; flex-shrink: 0;
+    background: linear-gradient(135deg, #0066ff, #0044cc);
+    color: white; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800;
+    box-shadow: 0 2px 6px rgba(0,102,255,0.35);
+}
+
+.stop-info { flex: 1; min-width: 0; }
+.stop-name { font-size: 13px; font-weight: 700; color: #1a1a2e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stop-distance { font-size: 11px; color: #888; margin-top: 2px; }
+
+.stop-tasks { padding-left: 36px; }
+.stop-task-item { font-size: 12px; color: #555; padding: 2px 0; }
+
+.more-stores {
+    margin-top: 6px; padding-left: 36px;
+    font-size: 11px; color: #0066ff; cursor: pointer;
+}
+.more-stores[open] { margin-bottom: 4px; }
+.more-stores summary { list-style: none; font-weight: 600; cursor: pointer; }
+.alt-store { font-size: 11px; color: #777; padding: 2px 0 2px 8px; }
+
+/* Legend */
+.task-legend { display: flex; flex-direction: column; gap: 7px; }
+.legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.legend-text { color: #444; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.no-match { font-size: 13px; color: #bbb; text-align: center; padding: 12px 0; }
+
+/* ── Map canvas ─────────────────────────── */
+.geomap-canvas { flex: 1; min-width: 0; position: relative; }
+.leaflet-map   { width: 100%; height: 100%; }
+
+/* Pulsing user dot */
+.pulse-ring {
+    width: 20px; height: 20px; position: relative;
+    display: flex; align-items: center; justify-content: center;
+}
+.pulse-ring::before {
+    content: '';
+    position: absolute;
+    width: 40px; height: 40px;
+    background: rgba(0,102,255,0.18);
+    border-radius: 50%;
+    animation: pulse-anim 1.8s ease-out infinite;
+}
+.pulse-core {
+    width: 14px; height: 14px;
+    background: #0066ff; border-radius: 50%;
+    border: 3px solid white;
+    box-shadow: 0 2px 8px rgba(0,102,255,0.5); z-index: 1;
+}
+
+@keyframes pulse-anim {
+    0%   { transform: scale(1); opacity: 0.8; }
+    100% { transform: scale(2.5); opacity: 0; }
+}
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+}
+
+@media (max-width: 900px) {
+    .geomap-page    { flex-direction: column; height: auto; }
+    .geomap-sidebar { width: 100%; max-height: 340px; border-right: none; border-bottom: 1px solid #edf0f7; }
+    .geomap-canvas  { height: 380px; }
+}

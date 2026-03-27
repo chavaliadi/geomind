@@ -4,14 +4,17 @@
     "description": "GeoMind - Smart Location-Based Reminders Web Dashboard",
     "private": true,
     "dependencies": {
+        "@clerk/clerk-react": "^5.61.4",
+        "axios": "^1.6.0",
+        "date-fns": "^2.30.0",
+        "leaflet": "^1.9.4",
+        "lucide-react": "^0.294.0",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
+        "react-leaflet": "^4.2.1",
         "react-router-dom": "^6.20.0",
         "react-scripts": "5.0.1",
-        "axios": "^1.6.0",
-        "recharts": "^2.10.0",
-        "date-fns": "^2.30.0",
-        "lucide-react": "^0.294.0"
+        "recharts": "^2.10.0"
     },
     "scripts": {
         "start": "react-scripts start",

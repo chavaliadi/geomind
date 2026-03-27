@@ -4,6 +4,11 @@
 import os
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
+from dataclasses import dataclass
+from typing import Tuple
+
+
+# ─── Paths ───────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 MODEL_DIR = os.path.join(BASE_DIR, "models")
@@ -14,27 +19,44 @@ CLASSIFIER_PATH     = os.path.join(MODEL_DIR, "classifier.pkl")
 VECTORIZER_PATH     = os.path.join(MODEL_DIR, "vectorizer.pkl")
 PROTOTYPE_PATH      = os.path.join(MODEL_DIR, "prototypes.pkl")
 
-# ─── Label Taxonomy ──────────────────────────────────────────────────────────
-# These MUST match your PostGIS `places` table category values exactly.
-CATEGORIES = ["grocery", "pharmacy", "clothing", "general"]
-FALLBACK_CATEGORY = "general"
 
-# ─── Confidence Thresholds ───────────────────────────────────────────────────
-# Tuned after running evaluate.py on actual model output:
-#   p25=0.653, p50=0.787, mean=0.740, min=0.283
-# Setting threshold at 0.60 → ~75%+ of all predictions pass without fallback
-CONFIDENCE_THRESHOLD = 0.60       # Below this → cosine similarity fallback
-SIMILARITY_THRESHOLD = 0.35       # Below this → return FALLBACK_CATEGORY
+# ─── Config Objects ──────────────────────────────────────────────────────────
 
-# ─── TF-IDF Settings ─────────────────────────────────────────────────────────
-TFIDF_NGRAM_RANGE = (1, 2)        # Unigrams + bigrams
-TFIDF_MAX_FEATURES = 10000        # Top 10k features
-TFIDF_SUBLINEAR_TF = True         # Log-scale TF (better for varied text lengths)
+@dataclass
+class TfidfConfig:
+    ngram_range: Tuple[int, int] = (1, 2)
+    max_features: int = 10000
+    sublinear_tf: bool = True
+    min_df: int = 1
 
-# ─── Cosine Similarity Fallback ──────────────────────────────────────────────
-# Number of prototype examples to store per category for similarity fallback
-PROTOTYPES_PER_CLASS = 25
+
+@dataclass
+class ModelConfig:
+    categories: Tuple[str, ...] = ("grocery", "pharmacy", "clothing", "general")
+    fallback_category: str = "general"
+    confidence_threshold: float = 0.60
+    # Logistic Regression params
+    max_iter: int = 1000
+    C: float = 5.0
+
+
+@dataclass
+class SimilarityConfig:
+    prototypes_per_class: int = 25
+    similarity_threshold: float = 0.35
+
+
+# ─── Shared Instances ────────────────────────────────────────────────────────
+# We keep the constants for backward compatibility while others migrate
+TF_CONFIG = TfidfConfig()
+MODEL_CONFIG = ModelConfig()
+SIM_CONFIG = SimilarityConfig()
+
+CATEGORIES = MODEL_CONFIG.categories
+FALLBACK_CATEGORY = MODEL_CONFIG.fallback_category
+CONFIDENCE_THRESHOLD = MODEL_CONFIG.confidence_threshold
+SIMILARITY_THRESHOLD = SIM_CONFIG.similarity_threshold
 
 # ─── FastAPI ─────────────────────────────────────────────────────────────────
 API_HOST = "0.0.0.0"
-API_PORT = 5000
+API_PORT = 5001

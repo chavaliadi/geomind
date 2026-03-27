@@ -1,7 +1,8 @@
 /* TaskManager.js */
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, Edit2, Check, X, Zap } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import './TaskManager.css';
 
 // Uses apiUrl + onTasksUpdate + showToast props from App.jsx
@@ -15,10 +16,20 @@ export default function TaskManager({ onTasksUpdate, apiUrl, showToast }) {
         text: '',
         priority: 'medium',
         category: 'general',
+        radius_meters: 1000,
     });
+    
+    const navigate = useNavigate();
+
     const [selectedTasks, setSelectedTasks] = useState(new Set());
     const [pendingDeleteId, setPendingDeleteId] = useState(null);
     const [showBulkConfirm, setShowBulkConfirm] = useState(false);
+    const [suggestedCategory, setSuggestedCategory] = useState(null);
+    const [isPredicting, setIsPredicting] = useState(false);
+    const [editingId, setEditingId] = useState(null);
+    const [editData, setEditData] = useState({});
+    const [scanningId, setScanningId] = useState(null);
+    const [scanResults, setScanResults] = useState({});
 
     const CATEGORIES = ['general', 'grocery', 'pharmacy', 'clothing'];
     const PRIORITIES = ['high', 'medium', 'low'];
@@ -42,9 +53,33 @@ export default function TaskManager({ onTasksUpdate, apiUrl, showToast }) {
         return () => clearInterval(interval);
     }, [fetchTasks]);
 
+    // ML Category Prediction (Phase 7E)
+    useEffect(() => {
+        const textToPredict = formData.text.trim();
+        if (textToPredict.length > 3 && formData.category === 'general') {
+            setIsPredicting(true);
+            const timeoutId = setTimeout(async () => {
+                try {
+                    const response = await axios.post('http://localhost:5001/predict', { text: textToPredict });
+                    setSuggestedCategory(response.data.category);
+                } catch (error) {
+                    console.error("ML Prediction failed:", error);
+                    setSuggestedCategory(null);
+                } finally {
+                    setIsPredicting(false);
+                }
+            }, 500);
+            return () => clearTimeout(timeoutId);
+        } else {
+            setSuggestedCategory(null);
+            setIsPredicting(false);
+        }
+    }, [formData.text, formData.category]);
+
     // Reset form
     const resetForm = () => {
-        setFormData({ text: '', priority: 'medium', category: 'general' });
+        setFormData({ text: '', priority: 'medium', category: 'general', radius_meters: 1000 });
+        setSuggestedCategory(null);
         setFormOpen(false);
     };
 
@@ -61,9 +96,24 @@ export default function TaskManager({ onTasksUpdate, apiUrl, showToast }) {
                 text: formData.text.trim(),
                 priority: formData.priority,
                 category_override: formData.category !== 'general' ? formData.category : undefined,
+                radius_meters: formData.radius_meters,
             };
 
             const response = await axios.post(`${API_URL}/tasks`, payload);
+
+            // Phase 7E: Feedback Loop - Check if user corrected the ML suggestion
+            if (suggestedCategory && formData.category !== 'general' && formData.category !== suggestedCategory) {
+                try {
+                    await axios.post('http://localhost:5001/feedback', {
+                        text: formData.text.trim(),
+                        predicted: suggestedCategory,
+                        corrected: formData.category
+                    });
+                    console.log(`Sent feedback: Corrected ${suggestedCategory} -> ${formData.category}`);
+                } catch (feedbackErr) {
+                    console.error("Failed to send ML feedback", feedbackErr);
+                }
+            }
 
             // Add to local state
             setTasks([response.data, ...tasks]);
@@ -73,6 +123,47 @@ export default function TaskManager({ onTasksUpdate, apiUrl, showToast }) {
         } catch (error) {
             notify('Error creating task: ' + error.message, 'error');
         }
+    };
+
+    // Edit task inline
+    const handleEditStart = (task) => {
+        setEditingId(task.id);
+        setEditData({ text: task.raw_text || task.text, priority: task.priority, category: task.category });
+    };
+
+    const handleSaveEdit = async (taskId) => {
+        try {
+            // We PATCH via a delete + re-insert pattern since backend has no PUT yet
+            await axios.delete(`${API_URL}/api/tasks/${taskId}`);
+            const response = await axios.post(`${API_URL}/tasks`, {
+                text: editData.text,
+                priority: editData.priority,
+                category_override: editData.category,
+            });
+            setTasks(prev => prev.map(t => t.id === taskId ? response.data : t));
+            setEditingId(null);
+            if (onTasksUpdate) onTasksUpdate();
+            notify('Task updated!', 'success');
+        } catch (err) {
+            notify('Error updating task: ' + err.message, 'error');
+        }
+    };
+
+    // Per-task scan
+    const triggerScan = async (task) => {
+        setScanningId(task.id);
+        try {
+            const lat = 12.9716, lng = 77.5946; // Bengaluru default; Phase 8B = real GPS
+            const r = await axios.post(`${API_URL}/location`, { lat, lng });
+            const match = r.data.batches?.find(b => b.category === task.category);
+            setScanResults(prev => ({
+                ...prev,
+                [task.id]: match
+                    ? `📍 ${match.tasks[0]?.place || 'Match'} found nearby!`
+                    : '❌ No nearby match.',
+            }));
+        } catch { setScanResults(prev => ({ ...prev, [task.id]: '⚠️ Scan failed.' })); }
+        finally { setScanningId(null); }
     };
 
     // Delete task
@@ -163,9 +254,20 @@ export default function TaskManager({ onTasksUpdate, apiUrl, showToast }) {
                                 <button className="btn btn-secondary btn-sm" onClick={() => setShowBulkConfirm(false)}>Cancel</button>
                             </div>
                         ) : (
-                            <button className="btn btn-danger" onClick={() => setShowBulkConfirm(true)}>
-                                Delete Selected ({selectedTasks.size})
-                            </button>
+                            <div style={{display:'flex', gap:'8px'}}>
+                                <button className="btn" style={{background:'#0066ff', color:'white', display:'flex', alignItems:'center', gap:'6px'}} onClick={() => {
+                                    // Use String coercion to ensure we don't fail strict Set equality checks
+                                    const tasksToScan = tasks.filter(t => Array.from(selectedTasks).some(id => String(id) === String(t.id)));
+                                    if (tasksToScan.length > 0) {
+                                        navigate('/map', { state: { scanTasks: tasksToScan } });
+                                    }
+                                }}>
+                                    <Zap size={15}/> Scan Selected ({selectedTasks.size})
+                                </button>
+                                <button className="btn btn-danger" onClick={() => setShowBulkConfirm(true)}>
+                                    Delete Selected ({selectedTasks.size})
+                                </button>
+                            </div>
                         )
                     )}
                     <button className="btn btn-primary" onClick={() => setFormOpen(!formOpen)}>
@@ -187,6 +289,11 @@ export default function TaskManager({ onTasksUpdate, apiUrl, showToast }) {
                                 placeholder="e.g., Buy apples from Whole Foods"
                                 autoFocus
                             />
+                            {isPredicting ? (
+                                <div className="ml-suggestion predicting">🧠 Analyzing text...</div>
+                            ) : suggestedCategory ? (
+                                <div className="ml-suggestion active">✨ Suggested category: <strong>{suggestedCategory}</strong> ✏️ <em style={{fontSize: '0.85em', color: '#666'}}>(change below if incorrect)</em></div>
+                            ) : null}
                         </div>
 
                         <div className="form-row">
@@ -212,6 +319,25 @@ export default function TaskManager({ onTasksUpdate, apiUrl, showToast }) {
                                         <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
                                     ))}
                                 </select>
+                            </div>
+                        </div>
+
+                        <div className="form-group">
+                            <label style={{display:'flex',justifyContent:'space-between'}}>
+                                <span>📍 Trigger Radius</span>
+                                <strong style={{color:'#0066ff'}}>
+                                    {formData.radius_meters < 1000
+                                        ? `${formData.radius_meters}m`
+                                        : `${(formData.radius_meters/1000).toFixed(1)}km`}
+                                </strong>
+                            </label>
+                            <input type="range" min="100" max="5000" step="100"
+                                value={formData.radius_meters}
+                                onChange={e => setFormData({...formData, radius_meters: Number(e.target.value)})}
+                                style={{width:'100%', accentColor:'#0066ff'}}
+                            />
+                            <div style={{display:'flex',justifyContent:'space-between',fontSize:'11px',color:'#aaa',marginTop:'2px'}}>
+                                <span>100m — tight</span><span>5km — city-wide</span>
                             </div>
                         </div>
 
@@ -249,11 +375,11 @@ export default function TaskManager({ onTasksUpdate, apiUrl, showToast }) {
                                     />
                                 </th>
                                 <th>Task</th>
-                                <th>Category</th>
-                                <th>Priority</th>
-                                <th>Status</th>
-                                <th>Created</th>
-                                <th>Actions</th>
+                                    <th>Category</th>
+                                    <th>Priority</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -266,46 +392,84 @@ export default function TaskManager({ onTasksUpdate, apiUrl, showToast }) {
                                             onChange={() => toggleTaskSelection(task.id)}
                                         />
                                     </td>
-                                    <td className="task-text-col">{task.raw_text || task.text}</td>
-                                    <td>
-                                        <span
-                                            className="badge"
-                                            style={{ backgroundColor: getCategoryColor(task.category), color: 'white' }}
-                                        >
-                                            {getCategoryEmoji(task.category)} {task.category}
-                                        </span>
+                                    <td className="task-text-col">
+                                        {editingId === task.id ? (
+                                            <input
+                                                className="edit-input"
+                                                value={editData.text}
+                                                onChange={e => setEditData({...editData, text: e.target.value})}
+                                            />
+                                        ) : (
+                                            <Link
+                                                to={`/tasks/${task.id}`}
+                                                style={{color:'#1a1a2e',textDecoration:'none',fontWeight:600}}
+                                                onMouseEnter={e => e.target.style.color='#0066ff'}
+                                                onMouseLeave={e => e.target.style.color='#1a1a2e'}
+                                            >
+                                                {task.raw_text || task.text}
+                                            </Link>
+                                        )}
                                     </td>
                                     <td>
-                                        <span
-                                            className="badge"
-                                            style={{ backgroundColor: getPriorityColor(task.priority), color: 'white' }}
-                                        >
-                                            {task.priority.toUpperCase()}
-                                        </span>
+                                        {editingId === task.id ? (
+                                            <select className="edit-select"
+                                                value={editData.category}
+                                                onChange={e => setEditData({...editData, category: e.target.value})}>
+                                                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                            </select>
+                                        ) : (
+                                            <span className="badge"
+                                                style={{ backgroundColor: getCategoryColor(task.category), color: 'white' }}>
+                                                {getCategoryEmoji(task.category)} {task.category}
+                                            </span>
+                                        )}
                                     </td>
                                     <td>
+                                        {editingId === task.id ? (
+                                            <select className="edit-select"
+                                                value={editData.priority}
+                                                onChange={e => setEditData({...editData, priority: e.target.value})}>
+                                                {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+                                            </select>
+                                        ) : (
+                                            <span className="badge"
+                                                style={{ backgroundColor: getPriorityColor(task.priority), color: 'white' }}>
+                                                {task.priority.toUpperCase()}
+                                            </span>
+                                        )}
+                                    </td>
+                                    <td>
+                                        {scanResults[task.id] && (
+                                            <div style={{fontSize:'11px',color:'#2d6a4f',marginBottom:'2px'}}>{scanResults[task.id]}</div>
+                                        )}
                                         <span className={`status ${task.triggered_at ? 'triggered' : 'pending'}`}>
                                             {task.triggered_at ? '✓ Triggered' : '⏳ Pending'}
                                         </span>
                                     </td>
                                     <td className="date-col">
-                                        {new Date(task.created_at).toLocaleDateString()} {new Date(task.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        {new Date(task.created_at).toLocaleDateString()}
                                     </td>
                                     <td className="actions-col">
-                                        {pendingDeleteId === task.id ? (
+                                        {editingId === task.id ? (
+                                            <div className="action-group">
+                                                <button className="btn-icon save" onClick={() => handleSaveEdit(task.id)} title="Save"><Check size={15}/></button>
+                                                <button className="btn-icon cancel" onClick={() => setEditingId(null)} title="Cancel"><X size={15}/></button>
+                                            </div>
+                                        ) : pendingDeleteId === task.id ? (
                                             <div className="inline-confirm">
                                                 <span>Delete?</span>
                                                 <button className="btn btn-danger btn-sm" onClick={() => handleDelete(task.id)}>Yes</button>
                                                 <button className="btn btn-secondary btn-sm" onClick={() => setPendingDeleteId(null)}>No</button>
                                             </div>
                                         ) : (
-                                            <button
-                                                className="btn-icon delete"
-                                                onClick={() => setPendingDeleteId(task.id)}
-                                                title="Delete"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
+                                            <div className="action-group">
+                                                <button className="btn-icon scan" onClick={() => triggerScan(task)}
+                                                    disabled={scanningId === task.id} title="Scan nearby">
+                                                    <Zap size={14}/>
+                                                </button>
+                                                <button className="btn-icon edit" onClick={() => handleEditStart(task)} title="Edit"><Edit2 size={15}/></button>
+                                                <button className="btn-icon delete" onClick={() => setPendingDeleteId(task.id)} title="Delete"><Trash2 size={15}/></button>
+                                            </div>
                                         )}
                                     </td>
                                 </tr>

@@ -11,9 +11,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from config import (
     CATEGORIES,
     FALLBACK_CATEGORY,
-    SIMILARITY_THRESHOLD,
+    SIM_CONFIG,
     PROTOTYPE_PATH,
-    PROTOTYPES_PER_CLASS,
 )
 from preprocessing import clean_text
 
@@ -27,8 +26,8 @@ def build_prototype_bank(df, vectorizer: TfidfVectorizer) -> dict:
     prototypes = {}
     for cat in CATEGORIES:
         cat_texts = df[df["category"] == cat]["text"].tolist()
-        # Take up to PROTOTYPES_PER_CLASS examples (middle of dataset = most representative)
-        sample = cat_texts[:PROTOTYPES_PER_CLASS]
+        # Take up to prototypes_per_class examples (middle of dataset = most representative)
+        sample = cat_texts[:SIM_CONFIG.prototypes_per_class]
         cleaned = [clean_text(t) for t in sample]
         prototypes[cat] = vectorizer.transform(cleaned)
 
@@ -77,7 +76,7 @@ def predict_with_similarity(
             best_score = max_sim
             best_category = cat
 
-    if best_score < SIMILARITY_THRESHOLD:
+    if best_score < SIM_CONFIG.similarity_threshold:
         return FALLBACK_CATEGORY, best_score
 
     return best_category, best_score

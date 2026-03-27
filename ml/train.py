@@ -16,40 +16,54 @@ from config import (
     CLASSIFIER_PATH,
     VECTORIZER_PATH,
     MODEL_DIR,
-    TFIDF_NGRAM_RANGE,
-    TFIDF_MAX_FEATURES,
-    TFIDF_SUBLINEAR_TF,
+    TF_CONFIG,
+    MODEL_CONFIG,
     CATEGORIES,
 )
 from preprocessing import clean_text
 from similarity import build_prototype_bank
 
 
+def _load_and_merge_feedback(df: pd.DataFrame) -> pd.DataFrame:
+    """Helper to merge feedback data if it exists and is valid."""
+    if not os.path.exists(FEEDBACK_DATA_PATH):
+        return df
+
+    feedback = pd.read_csv(FEEDBACK_DATA_PATH)
+    
+    # Map 'corrected' to 'category' if needed
+    if "corrected" in feedback.columns:
+        feedback = feedback.rename(columns={"corrected": "category"})
+        
+    # Validation
+    is_valid = "category" in feedback.columns and "text" in feedback.columns
+    if not is_valid:
+        return df
+
+    feedback = feedback.dropna(subset=["text", "category"])
+    if feedback.empty:
+        return df
+
+    print(f"📦 Feedback data merged: +{len(feedback)} rows")
+    return pd.concat([df, feedback], ignore_index=True)
+
+
 def load_data() -> pd.DataFrame:
-    """Load synthetic + feedback data, clean and merge."""
+    """Load synthetic + feedback data, clean and filter."""
     df = pd.read_csv(SYNTHETIC_DATA_PATH)
     print(f"📦 Synthetic data: {len(df)} rows")
 
-    # Merge feedback data if it has content
-    if os.path.exists(FEEDBACK_DATA_PATH):
-        feedback = pd.read_csv(FEEDBACK_DATA_PATH)
-        feedback = feedback.dropna(subset=["text", "category"])
-        if len(feedback) > 0:
-            df = pd.concat([df, feedback], ignore_index=True)
-            print(f"📦 Feedback data merged: +{len(feedback)} rows")
+    df = _load_and_merge_feedback(df)
 
-    # Filter to known categories only
+    # Filter to known categories
     df = df[df["category"].isin(CATEGORIES)].copy()
 
-    # Clean text
+    # Clean text (remove empty results)
     df["clean_text"] = df["text"].apply(clean_text)
-
-    # Drop rows where cleaning produced empty result
     df = df[df["clean_text"].str.strip() != ""].copy()
 
     print(f"✅ Total training samples: {len(df)}")
-    print(f"\nCategory breakdown:")
-    print(df["category"].value_counts().to_string())
+    print(f"\nCategory breakdown:\n{df['category'].value_counts().to_string()}")
     return df
 
 
@@ -66,16 +80,16 @@ def train(df: pd.DataFrame):
 
     # TF-IDF Vectorizer
     vectorizer = TfidfVectorizer(
-        ngram_range=TFIDF_NGRAM_RANGE,
-        max_features=TFIDF_MAX_FEATURES,
-        sublinear_tf=TFIDF_SUBLINEAR_TF,
-        min_df=1,
+        ngram_range=TF_CONFIG.ngram_range,
+        max_features=TF_CONFIG.max_features,
+        sublinear_tf=TF_CONFIG.sublinear_tf,
+        min_df=TF_CONFIG.min_df,
     )
 
     # Logistic Regression — best baseline for sparse TF-IDF multi-class
     classifier = LogisticRegression(
-        max_iter=1000,
-        C=5.0,             # Regularization: higher C = less regularization
+        max_iter=MODEL_CONFIG.max_iter,
+        C=MODEL_CONFIG.C,             # Regularization: higher C = less regularization
         solver="lbfgs",
         multi_class="multinomial",
         random_state=42,

@@ -28,36 +28,40 @@ _STOP_WORDS = stopwords.words("english")
 _STOP_WORDS = set(w for w in _STOP_WORDS if w not in _KEEP_WORDS)
 
 
+def _normalize_text(text: str) -> str:
+    """Lowercase and strip URLs, punctuation, and digits."""
+    text = text.lower()
+    # Remove URLs
+    text = re.sub(r"http\S+|www\S+", "", text)
+    # Remove punctuation and digits, keep spaces
+    return re.sub(r"[^a-z\s]", " ", text)
+
+
+def _tokenize_and_filter(text: str) -> list[str]:
+    """Split into tokens and remove stopwords/short noise."""
+    tokens = text.split()
+    # Filter stopwords (keeping negations) and removing single-char noise
+    return [t for t in tokens if t not in _STOP_WORDS and len(t) > 1]
+
+
+def _lemmatize_tokens(tokens: list[str]) -> list[str]:
+    """Apply dual-pass lemmatization (verb then noun)."""
+    # Verb form first for action words, then noun
+    tokens = [_lemmatizer.lemmatize(t, pos="v") for t in tokens]
+    return [_lemmatizer.lemmatize(t, pos="n") for t in tokens]
+
+
 def clean_text(text: str) -> str:
     """
     Full NLP preprocessing pipeline.
-    Steps: lowercase → strip URLs → strip punctuation/digits
-           → remove stopwords → lemmatize → collapse whitespace
+    Steps: normalize → tokenize → filter → lemmatize → join
     """
     if not isinstance(text, str) or not text.strip():
         return ""
 
-    # 1. Lowercase
-    text = text.lower()
-
-    # 2. Remove URLs (edge case for any future web-scraped data)
-    text = re.sub(r"http\S+|www\S+", "", text)
-
-    # 3. Remove punctuation and digits, keep spaces
-    text = re.sub(r"[^a-z\s]", " ", text)
-
-    # 4. Tokenize
-    tokens = text.split()
-
-    # 5. Remove stopwords (preserving important words defined in _KEEP_WORDS)
-    tokens = [t for t in tokens if t not in _STOP_WORDS]
-
-    # 6. Lemmatize (verb form first for action words, then noun)
-    tokens = [_lemmatizer.lemmatize(t, pos="v") for t in tokens]
-    tokens = [_lemmatizer.lemmatize(t, pos="n") for t in tokens]
-
-    # 7. Remove very short tokens (single chars are noise)
-    tokens = [t for t in tokens if len(t) > 1]
+    text = _normalize_text(text)
+    tokens = _tokenize_and_filter(text)
+    tokens = _lemmatize_tokens(tokens)
 
     return " ".join(tokens)
 

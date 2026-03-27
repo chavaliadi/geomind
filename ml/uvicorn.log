@@ -1,0 +1,42 @@
+INFO:     Started server process [23334]
+INFO:     Waiting for application startup.
+2026-03-23 22:24:52,359 - INFO - ✅ ML Models successfully loaded into memory.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:5001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:54373 - "GET /health HTTP/1.1" 200 OK
+2026-03-23 22:29:58,832 - INFO - Confidence 0.38 < 0.6 for 'running low on aspirin and band-aids'. Triggering fallback.
+2026-03-23 22:29:58,835 - INFO - Prediction: 'running low on aspirin and band-aids' → general (conf: 0.232, fallback: True)
+2026-03-23 22:30:00,415 - INFO - Confidence 0.40 < 0.6 for 'go for a walk to the park'. Triggering fallback.
+2026-03-23 22:30:00,416 - INFO - Prediction: 'go for a walk to the park' → general (conf: 0.126, fallback: True)
+INFO:     127.0.0.1:54939 - "POST /predict HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58545 - "OPTIONS /predict HTTP/1.1" 200 OK
+2026-03-23 22:59:25,407 - INFO - Confidence 0.55 < 0.6 for 'Buy m'. Triggering fallback.
+2026-03-23 22:59:25,417 - INFO - Prediction: 'Buy m' → clothing (conf: 1.000, fallback: True)
+INFO:     127.0.0.1:58545 - "POST /predict HTTP/1.1" 200 OK
+2026-03-23 22:59:25,809 - INFO - Confidence 0.55 < 0.6 for 'Buy md'. Triggering fallback.
+2026-03-23 22:59:25,813 - INFO - Prediction: 'Buy md' → clothing (conf: 1.000, fallback: True)
+INFO:     127.0.0.1:58545 - "POST /predict HTTP/1.1" 200 OK
+2026-03-23 22:59:26,459 - INFO - Confidence 0.55 < 0.6 for 'Buy m'. Triggering fallback.
+2026-03-23 22:59:26,467 - INFO - Prediction: 'Buy m' → clothing (conf: 1.000, fallback: True)
+INFO:     127.0.0.1:58545 - "POST /predict HTTP/1.1" 200 OK
+2026-03-23 22:59:27,645 - INFO - Confidence 0.55 < 0.6 for 'Buy med'. Triggering fallback.
+2026-03-23 22:59:27,649 - INFO - Prediction: 'Buy med' → clothing (conf: 1.000, fallback: True)
+INFO:     127.0.0.1:58545 - "POST /predict HTTP/1.1" 200 OK
+2026-03-23 22:59:28,746 - INFO - Confidence 0.55 < 0.6 for 'Buy medi'. Triggering fallback.
+2026-03-23 22:59:28,752 - INFO - Prediction: 'Buy medi' → clothing (conf: 1.000, fallback: True)
+INFO:     127.0.0.1:58545 - "POST /predict HTTP/1.1" 200 OK
+2026-03-23 22:59:29,349 - INFO - Confidence 0.55 < 0.6 for 'Buy medic'. Triggering fallback.
+2026-03-23 22:59:29,352 - INFO - Prediction: 'Buy medic' → clothing (conf: 1.000, fallback: True)
+INFO:     127.0.0.1:58545 - "POST /predict HTTP/1.1" 200 OK
+2026-03-23 22:59:30,568 - INFO - Prediction: 'Buy medicines' → pharmacy (conf: 0.889, fallback: False)
+INFO:     127.0.0.1:58545 - "POST /predict HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53646 - "OPTIONS /predict HTTP/1.1" 200 OK
+2026-03-24 15:01:01,845 - INFO - Confidence 0.55 < 0.6 for 'Buy oranges'. Triggering fallback.
+2026-03-24 15:01:01,848 - INFO - Prediction: 'Buy oranges' → clothing (conf: 1.000, fallback: True)
+INFO:     127.0.0.1:53646 - "POST /predict HTTP/1.1" 200 OK
+2026-03-24 15:04:19,744 - INFO - Confidence 0.55 < 0.6 for 'Buy oranges'. Triggering fallback.
+2026-03-24 15:04:19,751 - INFO - Prediction: 'Buy oranges' → clothing (conf: 1.000, fallback: True)
+INFO:     127.0.0.1:54022 - "POST /predict HTTP/1.1" 200 OK
+2026-03-24 15:04:21,146 - INFO - Confidence 0.55 < 0.6 for 'Buy oranges'. Triggering fallback.
+2026-03-24 15:04:21,150 - INFO - Prediction: 'Buy oranges' → clothing (conf: 1.000, fallback: True)
+INFO:     127.0.0.1:54022 - "POST /predict HTTP/1.1" 200 OK

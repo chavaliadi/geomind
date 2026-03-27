@@ -282,3 +282,68 @@
         display: none;
     }
 }
+
+/* ML Suggestions (Phase 7E) */
+.ml-suggestion {
+    margin-top: 8px;
+    font-size: 13px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    color: #495057;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.ml-suggestion.active {
+    background: #e3f2fd;
+    border-color: #bbdefb;
+    color: #0d47a1;
+}
+
+.ml-suggestion.predicting {
+    color: #6c757d;
+    font-style: italic;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Action Group */
+.action-group {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.btn-icon {
+    width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    border: none; border-radius: 8px; cursor: pointer;
+    transition: all 0.18s;
+    flex-shrink: 0;
+}
+.btn-icon.delete  { background: #fff0f0; color: #e74c3c; }
+.btn-icon.delete:hover { background: #e74c3c; color: white; }
+.btn-icon.edit    { background: #f0f4ff; color: #0066ff; }
+.btn-icon.edit:hover  { background: #0066ff; color: white; }
+.btn-icon.save    { background: #e8f5e9; color: #27ae60; }
+.btn-icon.save:hover  { background: #27ae60; color: white; }
+.btn-icon.cancel  { background: #f8f9fa; color: #666; }
+.btn-icon.cancel:hover { background: #dee2e6; }
+.btn-icon.scan    { background: #e8faf5; color: #00b894; }
+.btn-icon.scan:hover  { background: #00b894; color: white; }
+.btn-icon:disabled { opacity: 0.5; cursor: default; }
+
+/* Inline edit inputs */
+.edit-input, .edit-select {
+    padding: 5px 8px;
+    border: 1.5px solid #0066ff;
+    border-radius: 6px;
+    font-size: 13px;
+    background: white;
+    width: 100%;
+    outline: none;
+}

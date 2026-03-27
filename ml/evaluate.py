@@ -18,6 +18,8 @@ from config import (
     CLASSIFIER_PATH,
     VECTORIZER_PATH,
     CATEGORIES,
+    MODEL_CONFIG,
+    SIM_CONFIG,
 )
 from preprocessing import clean_text
 
