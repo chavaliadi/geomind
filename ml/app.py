@@ -65,8 +65,14 @@ class PredictRequest(BaseModel):
 
 class FeedbackRequest(BaseModel):
     text: str
-    predicted: str
-    corrected: str
+    # New mobile/web fields
+    task_id: str | None = None
+    chosen_category: str | None = None
+    chosen_store: str | None = None
+    rating: int | None = None
+    # Legacy fields (backwards compatible)
+    predicted: str | None = None
+    corrected: str | None = None
 
 # ─── Endpoints ───────────────────────────────────────────────────────────────
 @app.get("/health")
@@ -118,17 +124,30 @@ def feedback(request: FeedbackRequest):
         # Ensure file exists, if not create with headers
         file_exists = os.path.isfile(FEEDBACK_DATA_PATH)
         
-        # Create a tiny dataframe
-        df = pd.DataFrame([{
+        # Normalize: support both new mobile format and legacy format
+        predicted = request.predicted or request.chosen_category or "unknown"
+        corrected = request.corrected or request.chosen_category or "unknown"
+        
+        # Create a dataframe with all available info
+        row = {
             "text": request.text,
-            "predicted": request.predicted,
-            "corrected": request.corrected
-        }])
+            "predicted": predicted,
+            "corrected": corrected,
+        }
+        # Include extra mobile fields if present
+        if request.task_id:
+            row["task_id"] = request.task_id
+        if request.chosen_store:
+            row["chosen_store"] = request.chosen_store
+        if request.rating is not None:
+            row["rating"] = request.rating
+        
+        df = pd.DataFrame([row])
         
         # Append to CSV
         df.to_csv(FEEDBACK_DATA_PATH, mode='a', header=not file_exists, index=False)
         
-        logger.info(f"Feedback saved: '{request.text}' corrected from '{request.predicted}' to '{request.corrected}'")
+        logger.info(f"Feedback saved: '{request.text}' → {corrected} (rating: {request.rating}, store: {request.chosen_store})")
         return {"status": "success", "message": "Feedback recorded."}
     except Exception as e:
         logger.error(f"Failed to save feedback: {e}")

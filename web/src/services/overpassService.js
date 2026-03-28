@@ -70,6 +70,52 @@ function buildQuery(lat, lng, radiusMeters, category) {
     return `[out:json][timeout:25];\n(\n${nodeQueries}\n);\nout center;`;
 }
 
+const OVERPASS_ENDPOINTS = [
+    'https://lz4.overpass-api.de/api/interpreter',
+    'https://overpass-api.de/api/interpreter',
+    'https://z.overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+];
+
+async function fetchOverpassWithFallback(query, timeoutMs = 15000) {
+    const body = `data=${encodeURIComponent(query)}`;
+    let lastError = null;
+
+    for (const endpoint of OVERPASS_ENDPOINTS) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body,
+                signal: controller.signal,
+            });
+
+            clearTimeout(timer);
+
+            if (!res.ok) {
+                lastError = new Error(`Overpass API error ${res.status} at ${endpoint}`);
+                continue;
+            }
+
+            const data = await res.json();
+            return data;
+        } catch (err) {
+            clearTimeout(timer);
+            // AbortError = our own timeout — silently try next endpoint
+            if (err.name === 'AbortError') {
+                lastError = new Error(`Timeout at ${endpoint}`);
+            } else {
+                lastError = err;
+            }
+        }
+    }
+
+    throw lastError || new Error('All Overpass endpoints failed');
+}
+
 /* ── Main fetch function ──────────────────────────── */
 /**
  * @param {number} lat
@@ -80,17 +126,7 @@ function buildQuery(lat, lng, radiusMeters, category) {
  */
 export async function fetchNearbyPlaces(lat, lng, category, radiusMeters = 2000) {
     const query = buildQuery(lat, lng, radiusMeters, category);
-    const url = 'https://lz4.overpass-api.de/api/interpreter';
-
-    const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `data=${encodeURIComponent(query)}`,
-    });
-
-    if (!res.ok) throw new Error(`Overpass API error: ${res.status}`);
-
-    const data = await res.json();
+    const data = await fetchOverpassWithFallback(query);
 
     // Deduplicate by name + approximate coord bucket
     const seen = new Set();
@@ -112,14 +148,14 @@ export async function fetchNearbyPlaces(lat, lng, category, radiusMeters = 2000)
         const dist = haversine(lat, lng, elLat, elLon);
 
         places.push({
-            id:       el.id,
-            name:     displayName,
-            lat:      elLat,
-            lng:      elLon,
-            type:     el.tags?.shop || el.tags?.amenity || el.tags?.healthcare || category,
+            id: el.id,
+            name: displayName,
+            lat: elLat,
+            lng: elLon,
+            type: el.tags?.shop || el.tags?.amenity || el.tags?.healthcare || category,
             distance: Math.round(dist),
-            phone:    el.tags?.phone || null,
-            opening:  el.tags?.opening_hours || null,
+            phone: el.tags?.phone || null,
+            opening: el.tags?.opening_hours || null,
         });
     }
 
@@ -182,11 +218,11 @@ export async function buildTripPlan(tasks, lat, lng, defaultRadius = 2000, fetch
         const bestStore = places[0] || null; // nearest store
 
         stops.push({
-            stop:     stopNum++,
+            stop: stopNum++,
             category,
-            store:    bestStore,
+            store: bestStore,
             allPlaces: places.slice(0, 5), // top 5 nearby for display
-            tasks:    categoryTasks,
+            tasks: categoryTasks,
             distance: bestStore?.distance ?? null,
         });
     }

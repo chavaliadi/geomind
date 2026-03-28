@@ -1,11 +1,10 @@
 /* GeoMind Live Map — Phase 8B+ with Overpass API & Smart Trip Grouping */
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Circle, Popup, useMapEvents, useMap, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapPin, Navigation, Zap, List } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { buildTripPlan } from '../services/overpassService';
 import { fetchTripRoute } from '../services/routingService';
 import './GeoMap.css';
@@ -14,12 +13,12 @@ import './GeoMap.css';
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
     iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-    iconUrl:       'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-    shadowUrl:     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-const CAT_COLORS = { grocery:'#2ecc71', pharmacy:'#3498db', clothing:'#e67e22', general:'#9b59b6' };
-const CAT_EMOJI  = { grocery:'🛒', pharmacy:'💊', clothing:'👕', general:'📌' };
+const CAT_COLORS = { grocery: '#2ecc71', pharmacy: '#3498db', clothing: '#e67e22', general: '#9b59b6' };
+const CAT_EMOJI = { grocery: '🛒', pharmacy: '💊', clothing: '👕', general: '📌' };
 
 /* Category-coloured teardrop marker */
 const storeIcon = (category, stopNum) => L.divIcon({
@@ -27,13 +26,13 @@ const storeIcon = (category, stopNum) => L.divIcon({
     html: `<div style="
         position:relative;width:38px;height:38px;
         border-radius:50% 50% 50% 0;
-        background:${CAT_COLORS[category]||'#666'};
+        background:${CAT_COLORS[category] || '#666'};
         border:3px solid white;
         box-shadow:0 3px 10px rgba(0,0,0,0.3);
         display:flex;align-items:center;justify-content:center;
         font-size:16px;transform:rotate(-45deg);
         ">
-          <span style="transform:rotate(45deg);line-height:1">${CAT_EMOJI[category]||'📌'}</span>
+          <span style="transform:rotate(45deg);line-height:1">${CAT_EMOJI[category] || '📌'}</span>
           <span style="
             position:absolute;top:-8px;right:-8px;
             transform:rotate(45deg);
@@ -44,16 +43,16 @@ const storeIcon = (category, stopNum) => L.divIcon({
             border:2px solid white;
           ">${stopNum}</span>
         </div>`,
-    iconSize:   [38, 38],
+    iconSize: [38, 38],
     iconAnchor: [19, 38],
-    popupAnchor:[0, -40],
+    popupAnchor: [0, -40],
 });
 
 /* Pulsing blue user-location dot */
 const userIcon = L.divIcon({
     className: '',
     html: `<div class="pulse-ring"><div class="pulse-core"></div></div>`,
-    iconSize:   [20, 20],
+    iconSize: [20, 20],
     iconAnchor: [10, 10],
 });
 
@@ -70,33 +69,39 @@ function FlyTo({ position }) {
     return null;
 }
 
-const formatDist = d => d < 1000 ? `${d}m` : `${(d/1000).toFixed(1)}km`;
+const formatDist = d => d < 1000 ? `${d}m` : `${(d / 1000).toFixed(1)}km`;
 
 export default function GeoMap({ apiUrl, tasks = [], showToast }) {
     const notify = showToast || console.log;
     const location = useLocation();
     const navigate = useNavigate();
 
-    const [position,  setPosition]  = useState(() => {
+    const [position, setPosition] = useState(() => {
         try {
             const saved = localStorage.getItem('geomind-pos');
             if (saved) return JSON.parse(saved);
-        } catch(e) {}
+        } catch (e) { }
         return { lat: 25.432247, lng: 81.770706 };
     });
-    const [radius,    setRadius]    = useState(2000);
-    const [scanning,  setScanning]  = useState(false);
-    const [tripPlan,  setTripPlan]  = useState(null);   // array of stops
+    const [radius, setRadius] = useState(2000);
+    const [scanning, setScanning] = useState(false);
+    const [tripPlan, setTripPlan] = useState(null);   // array of stops
     const [routeData, setRouteData] = useState(null);   // Polyline coords + ETA
     const [gpsActive, setGpsActive] = useState(false);
     const watchId = useRef(null);
+    // Per-stop route state: { stopNum: routeData }
+    const [perStopRoutes, setPerStopRoutes] = useState({});
+    const [loadingRouteStop, setLoadingRouteStop] = useState(null);
 
     // Persist position when updated
     useEffect(() => {
         localStorage.setItem('geomind-pos', JSON.stringify(position));
     }, [position]);
 
-    const basePendingTasks = tasks.filter(t => t.status !== 'triggered');
+    const basePendingTasks = useMemo(
+        () => tasks.filter(t => t.status !== 'triggered'),
+        [tasks]
+    );
     const [activeTasks, setActiveTasks] = useState(location.state?.scanTasks || basePendingTasks);
 
     // Sync activeTasks if tasks from parent change
@@ -104,7 +109,7 @@ export default function GeoMap({ apiUrl, tasks = [], showToast }) {
         if (!location.state?.scanTasks) {
             setActiveTasks(basePendingTasks);
         }
-    }, [tasks]);
+    }, [basePendingTasks, location.state?.scanTasks]);
 
     /* ── Run smart scan ── */
     const runScan = useCallback(async (forcedTasks = null) => {
@@ -119,24 +124,55 @@ export default function GeoMap({ apiUrl, tasks = [], showToast }) {
         try {
             const plan = await buildTripPlan(tasksToUse, position.lat, position.lng, radius);
             setTripPlan(plan);
+            setPerStopRoutes({});
             const stopsWithStore = plan.filter(s => s.store);
-            
+            const stopsNoStore   = plan.filter(s => !s.store);
+
             if (stopsWithStore.length > 0) {
-                const waypoints = [ position, ...stopsWithStore.map(s => ({ lat: s.store.lat, lng: s.store.lng })) ];
+                const waypoints = [position, ...stopsWithStore.map(s => ({ lat: s.store.lat, lng: s.store.lng }))];
                 const route = await fetchTripRoute(waypoints);
                 if (route) setRouteData(route);
             }
 
-            notify(
-                `Trip plan ready — ${stopsWithStore.length} stop${stopsWithStore.length !== 1 ? 's' : ''} found! 🗺️`,
-                'success'
-            );
+            // Smart toast: distinguish found vs still-searching
+            if (stopsNoStore.length === 0) {
+                notify(`Trip plan ready — ${stopsWithStore.length} stop${stopsWithStore.length !== 1 ? 's' : ''} found! 🗺️`, 'success');
+            } else if (stopsWithStore.length === 0) {
+                notify(
+                    `No stores found for: ${stopsNoStore.map(s => s.category).join(', ')} — backend still monitoring 🔍`,
+                    'info'
+                );
+            } else {
+                const foundList   = stopsWithStore.map(s => `${CAT_EMOJI[s.category]} ${s.category}`).join(', ');
+                const searchList  = stopsNoStore.map(s => `${CAT_EMOJI[s.category]} ${s.category}`).join(', ');
+                notify(
+                    `Found: ${foundList} ✅  ·  Still searching: ${searchList} 🔍`,
+                    'success'
+                );
+            }
         } catch (err) {
             notify('Scan failed: ' + err.message, 'error');
         } finally {
-            setScanning(false); 
+            setScanning(false);
         }
-    }, [activeTasks, position, radius, apiUrl, notify]);
+    }, [activeTasks, position, radius, notify]);
+
+    /* ── Per-stop individual route ── */
+    const toggleStopRoute = async (stop) => {
+        const key = stop.stop;
+        if (perStopRoutes[key]) {
+            // Hide route
+            setPerStopRoutes(prev => { const n = { ...prev }; delete n[key]; return n; });
+            return;
+        }
+        if (!stop.store) return;
+        setLoadingRouteStop(key);
+        try {
+            const route = await fetchTripRoute([position, { lat: stop.store.lat, lng: stop.store.lng }]);
+            if (route) setPerStopRoutes(prev => ({ ...prev, [key]: route }));
+        } catch (e) { console.warn('Per-stop route failed:', e); }
+        finally { setLoadingRouteStop(null); }
+    };
 
     /* ── GPS tracking ── */
     const startGPS = () => {
@@ -167,10 +203,10 @@ export default function GeoMap({ apiUrl, tasks = [], showToast }) {
 
     const PRESETS = [
         { label: 'Divyasree Omega, HYD', lat: 17.45889, lng: 78.37302 },
-        { label: 'Bengaluru',     lat: 12.9716, lng: 77.5946 },
-        { label: 'Prayagraj',     lat: 25.4322, lng: 81.7707 },
-        { label: 'Mumbai',        lat: 19.0760, lng: 72.8777 },
-        { label: 'Delhi',         lat: 28.6139, lng: 77.2090 },
+        { label: 'Bengaluru', lat: 12.9716, lng: 77.5946 },
+        { label: 'Prayagraj', lat: 25.4322, lng: 81.7707 },
+        { label: 'Mumbai', lat: 19.0760, lng: 72.8777 },
+        { label: 'Delhi', lat: 28.6139, lng: 77.2090 },
     ];
 
     return (
@@ -180,17 +216,17 @@ export default function GeoMap({ apiUrl, tasks = [], showToast }) {
 
                 {/* Position */}
                 <div className="sidebar-section">
-                    <h3 className="sidebar-title"><Navigation size={13}/> Your Position</h3>
+                    <h3 className="sidebar-title"><Navigation size={13} /> Your Position</h3>
                     <div className="coord-row">
                         <div className="coord-group">
                             <label>Lat</label>
                             <input type="number" step="0.000001" value={position.lat}
-                                onChange={e => setPosition(p => ({...p, lat: parseFloat(e.target.value)||p.lat}))} />
+                                onChange={e => setPosition(p => ({ ...p, lat: parseFloat(e.target.value) || p.lat }))} />
                         </div>
                         <div className="coord-group">
                             <label>Lng</label>
                             <input type="number" step="0.000001" value={position.lng}
-                                onChange={e => setPosition(p => ({...p, lng: parseFloat(e.target.value)||p.lng}))} />
+                                onChange={e => setPosition(p => ({ ...p, lng: parseFloat(e.target.value) || p.lng }))} />
                         </div>
                     </div>
                     <div className="preset-chips">
@@ -204,7 +240,7 @@ export default function GeoMap({ apiUrl, tasks = [], showToast }) {
                     <div className="gps-row">
                         <button className={`btn-gps ${gpsActive ? 'active' : ''}`}
                             onClick={gpsActive ? stopGPS : startGPS}>
-                            <MapPin size={13}/> {gpsActive ? '⏹ Stop GPS' : '▶ Live GPS'}
+                            <MapPin size={13} /> {gpsActive ? '⏹ Stop GPS' : '▶ Live GPS'}
                         </button>
                         {gpsActive && <span className="gps-indicator">● Live</span>}
                     </div>
@@ -216,8 +252,8 @@ export default function GeoMap({ apiUrl, tasks = [], showToast }) {
                     <input type="range" min="500" max="5000" step="250"
                         value={radius} onChange={e => { setRadius(Number(e.target.value)); setTripPlan(null); }} />
                     <div className="radius-label">
-                        <span style={{fontWeight:700}}>{formatDist(radius)}</span>
-                        <span style={{color:'#aaa',fontSize:'11px'}}>
+                        <span style={{ fontWeight: 700 }}>{formatDist(radius)}</span>
+                        <span style={{ color: '#aaa', fontSize: '11px' }}>
                             {radius < 1000 ? 'Tight zone' : radius < 2500 ? 'Neighbourhood' : 'City-wide'}
                         </span>
                     </div>
@@ -226,7 +262,7 @@ export default function GeoMap({ apiUrl, tasks = [], showToast }) {
                 {/* Scan button */}
                 <div className="sidebar-section">
                     <button className="btn-scan" onClick={() => runScan()} disabled={scanning || activeTasks.length === 0}>
-                        <Zap size={15}/>
+                        <Zap size={15} />
                         {scanning ? 'Scanning real places…' : `Scan All (${activeTasks.length} tasks)`}
                     </button>
                     <p className="scan-hint">
@@ -239,34 +275,51 @@ export default function GeoMap({ apiUrl, tasks = [], showToast }) {
                 {/* Trip Plan */}
                 {tripPlan && (
                     <div className="sidebar-section trip-plan">
-                        <h3 className="sidebar-title"><List size={13}/> Your Trip Plan</h3>
-                        
+                        <h3 className="sidebar-title"><List size={13} /> Your Trip Plan</h3>
+
                         {routeData && (
-                            <div className="route-stats" style={{paddingBottom: '12px', marginBottom: '12px', borderBottom: '1px solid #eee', fontSize: '13px'}}>
-                                <span style={{color: '#666'}}>🚗 Drive Time: </span>
+                            <div className="route-stats" style={{ paddingBottom: '12px', marginBottom: '12px', borderBottom: '1px solid #eee', fontSize: '13px' }}>
+                                <span style={{ color: '#666' }}>🚗 Drive Time: </span>
                                 <strong>~{Math.round(routeData.durationTotal / 60)} mins</strong>
-                                <span style={{color: '#aaa', fontSize: '11px', marginLeft: '6px'}}> ({formatDist(routeData.distanceTotal)})</span>
+                                <span style={{ color: '#aaa', fontSize: '11px', marginLeft: '6px' }}> ({formatDist(routeData.distanceTotal)})</span>
                             </div>
                         )}
 
                         {tripPlan.length === 0 ? (
                             <p className="no-match">No stores found in this radius</p>
                         ) : tripPlan.map(stop => (
-                            <div key={stop.stop} className={`trip-stop ${!stop.store ? 'no-store' : ''}`}>
+                            <div key={stop.stop} className={`trip-stop ${!stop.store ? 'searching' : ''}`}>
                                 <div className="stop-header">
-                                    <div className="stop-number">{stop.stop}</div>
+                                    <div className="stop-number" style={{ background: stop.store ? `linear-gradient(135deg, ${CAT_COLORS[stop.category]}, ${CAT_COLORS[stop.category]}cc)` : '#ccc' }}>
+                                        {stop.stop}
+                                    </div>
                                     <div className="stop-info">
                                         <div className="stop-name">
                                             {stop.store
                                                 ? stop.store.name
-                                                : `No ${stop.category} store found`}
+                                                : <span className="searching-text">🔍 Searching nearby…</span>}
                                         </div>
                                         {stop.store && (
                                             <div className="stop-distance">
                                                 {CAT_EMOJI[stop.category]} {stop.category} &nbsp;·&nbsp; 📍 {formatDist(stop.store.distance)}
                                             </div>
                                         )}
+                                        {!stop.store && (
+                                            <div className="stop-distance" style={{ color: '#f39c12' }}>
+                                                {CAT_EMOJI[stop.category]} {stop.category} · backend monitoring
+                                            </div>
+                                        )}
                                     </div>
+                                    {stop.store && (
+                                        <button
+                                            className={`btn-stop-route ${perStopRoutes[stop.stop] ? 'active' : ''}`}
+                                            onClick={() => toggleStopRoute(stop)}
+                                            disabled={loadingRouteStop === stop.stop}
+                                            title={perStopRoutes[stop.stop] ? 'Hide route' : 'Show route to this stop'}
+                                        >
+                                            {loadingRouteStop === stop.stop ? '…' : perStopRoutes[stop.stop] ? '🗺️ Hide' : '🗺️ Route'}
+                                        </button>
+                                    )}
                                 </div>
                                 <div className="stop-tasks">
                                     {stop.tasks.map(t => (
@@ -277,12 +330,29 @@ export default function GeoMap({ apiUrl, tasks = [], showToast }) {
                                 </div>
                                 {stop.allPlaces?.length > 1 && (
                                     <details className="more-stores">
-                                        <summary>{stop.allPlaces.length - 1} more nearby</summary>
-                                        {stop.allPlaces.slice(1).map((pl, i) => (
-                                            <div key={i} className="alt-store">
-                                                {pl.name} — {formatDist(pl.distance)}
-                                            </div>
-                                        ))}
+                                        <summary>+ {stop.allPlaces.length - 1} other nearby options</summary>
+                                        {stop.allPlaces.slice(1).map((pl, i) => {
+                                            const altKey = `${stop.stop}-alt-${i}`;
+                                            const isAltActive = perStopRoutes[altKey];
+                                            return (
+                                                <div key={i} className="alt-store-row">
+                                                    <div className="alt-store-info">
+                                                        <span className="alt-store-num">{i + 2}</span>
+                                                        <div>
+                                                            <div className="alt-store-name">{pl.name}</div>
+                                                            <div className="alt-store-dist">📍 {formatDist(pl.distance)}</div>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        className={`btn-stop-route ${isAltActive ? 'active' : ''}`}
+                                                        onClick={() => toggleStopRoute({ stop: altKey, store: pl })}
+                                                        disabled={loadingRouteStop === altKey}
+                                                    >
+                                                        {loadingRouteStop === altKey ? '…' : isAltActive ? '🗺️ Hide' : '🗺️ Route'}
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
                                     </details>
                                 )}
                             </div>
@@ -297,7 +367,7 @@ export default function GeoMap({ apiUrl, tasks = [], showToast }) {
                         <div className="task-legend">
                             {activeTasks.slice(0, 8).map(t => (
                                 <div key={t.id} className="legend-item">
-                                    <span style={{color: CAT_COLORS[t.category]}}>{CAT_EMOJI[t.category]||'📌'}</span>
+                                    <span style={{ color: CAT_COLORS[t.category] }}>{CAT_EMOJI[t.category] || '📌'}</span>
                                     <span className="legend-text">{t.raw_text || t.text}</span>
                                 </div>
                             ))}
@@ -323,9 +393,9 @@ export default function GeoMap({ apiUrl, tasks = [], showToast }) {
                     {/* User pin */}
                     <Marker position={[position.lat, position.lng]} icon={userIcon}>
                         <Popup>
-                            <b>📍 Your Position</b><br/>
+                            <b>📍 Your Position</b><br />
                             {position.lat.toFixed(5)}, {position.lng.toFixed(5)}
-                            {gpsActive && <><br/><span style={{color:'#00b894'}}>● Live GPS active</span></>}
+                            {gpsActive && <><br /><span style={{ color: '#00b894' }}>● Live GPS active</span></>}
                         </Popup>
                     </Marker>
 
@@ -333,15 +403,29 @@ export default function GeoMap({ apiUrl, tasks = [], showToast }) {
                     <Circle
                         center={[position.lat, position.lng]}
                         radius={radius}
-                        pathOptions={{ color:'#0066ff', fillColor:'#0066ff', fillOpacity:0.07, weight:2, dashArray:'6,4' }}
+                        pathOptions={{ color: '#0066ff', fillColor: '#0066ff', fillOpacity: 0.07, weight: 2, dashArray: '6,4' }}
                     />
 
-                    {/* Route line */}
+                    {/* Combined trip route */}
                     {routeData && (
-                        <Polyline 
-                            positions={routeData.coordinates} 
-                            pathOptions={{ color: '#0066ff', weight: 4, dashArray: '10, 8', opacity: 0.7 }} 
+                        <Polyline
+                            positions={routeData.coordinates}
+                            pathOptions={{ color: '#0066ff', weight: 4, dashArray: '10, 8', opacity: 0.6 }}
                         />
+                    )}
+
+                    {/* Per-stop individual routes */}
+                    {tripPlan && tripPlan.map(stop =>
+                        perStopRoutes[stop.stop] ? (
+                            <Polyline
+                                key={`per-${stop.stop}`}
+                                positions={perStopRoutes[stop.stop].coordinates}
+                                pathOptions={{
+                                    color: CAT_COLORS[stop.category] || '#666',
+                                    weight: 5, opacity: 0.9, lineJoin: 'round'
+                                }}
+                            />
+                        ) : null
                     )}
 
                     {/* Store markers from trip plan — FIXED real coords */}
@@ -352,20 +436,20 @@ export default function GeoMap({ apiUrl, tasks = [], showToast }) {
                             icon={storeIcon(stop.category, stop.stop)}
                         >
                             <Popup>
-                                <div style={{minWidth:'160px'}}>
-                                    <strong style={{fontSize:'14px'}}>
+                                <div style={{ minWidth: '160px' }}>
+                                    <strong style={{ fontSize: '14px' }}>
                                         {CAT_EMOJI[stop.category]} {stop.store.name}
-                                    </strong><br/>
-                                    <span style={{color:'#666',fontSize:'12px'}}>
+                                    </strong><br />
+                                    <span style={{ color: '#666', fontSize: '12px' }}>
                                         {stop.store.type} &nbsp;·&nbsp; 📍 {formatDist(stop.store.distance)}
                                     </span>
                                     {stop.store.opening && (
-                                        <><br/><span style={{fontSize:'11px',color:'#888'}}>🕐 {stop.store.opening}</span></>
+                                        <><br /><span style={{ fontSize: '11px', color: '#888' }}>🕐 {stop.store.opening}</span></>
                                     )}
-                                    <hr style={{margin:'8px 0'}}/>
-                                    <strong style={{fontSize:'11px',color:'#555'}}>Tasks at this stop:</strong>
+                                    <hr style={{ margin: '8px 0' }} />
+                                    <strong style={{ fontSize: '11px', color: '#555' }}>Tasks at this stop:</strong>
                                     {stop.tasks.map(t => (
-                                        <div key={t.id} style={{fontSize:'12px',paddingLeft:'6px'}}>
+                                        <div key={t.id} style={{ fontSize: '12px', paddingLeft: '6px' }}>
                                             · {t.raw_text || t.text}
                                         </div>
                                     ))}

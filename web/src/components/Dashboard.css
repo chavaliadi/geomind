@@ -95,8 +95,20 @@
 /* ── Dashboard Grid ─────────────────────────────────── */
 .dashboard-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
     gap: 20px;
+}
+
+/* Make all sections look like cards */
+.stats-section,
+.recent-tasks-section,
+.category-section,
+.priority-section {
+    background: white;
+    padding: 20px;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    border: 1px solid rgba(0,0,0,0.04);
 }
 
 .stats-section h2,
@@ -138,15 +150,7 @@
 .stat-value { font-size: 26px; font-weight: 800; color: #0066ff; }
 
 /* ── Recent Tasks ────────────────────────────────────── */
-.recent-tasks-section,
-.category-section,
-.priority-section {
-    background: white;
-    padding: 20px;
-    border-radius: 14px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-    border: 1px solid rgba(0,0,0,0.04);
-}
+/* (stats-section now gets styling from the shared rule above) */
 
 .tasks-list   { display: flex; flex-direction: column; gap: 10px; }
 
@@ -262,7 +266,7 @@
 .skeleton-line-long   { width: 70%; }
 .skeleton-line-short  { width: 40%; }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
     .dashboard-grid    { grid-template-columns: 1fr; }
     .stats-grid        { grid-template-columns: repeat(2, 1fr); }
     .category-item     { grid-template-columns: 80px 1fr 36px; }

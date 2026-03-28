@@ -16,13 +16,13 @@ GeoMind is an intelligent location-based reminder system that automatically noti
 
 ## ✅ What We've Done Till Now
 
-### Phase 1: Core Backend Infrastructure
+### Phase 1: Core Backend Infrastructure (COMPLETED)
 - ✅ Set up Node.js + Express server on port 3000
 - ✅ PostgreSQL database with PostGIS for geospatial queries
 - ✅ `smart_tasks` table with priority column and status tracking
 - ✅ `places` table with lat/lng coordinates for categories
 
-### Phase 2: Geo-Matching Engine
+### Phase 2: Geo-Matching Engine (COMPLETED)
 - ✅ `POST /location` endpoint that analyzes user location against stored places
 - ✅ Proximity detection using ST_DWithin (PostGIS) within 1km radius
 - ✅ Per-task cooldown system to prevent repeated triggers
@@ -47,7 +47,7 @@ GeoMind is an intelligent location-based reminder system that automatically noti
   - Successfully triggered batches for multiple categories (clothing + grocery)
   - Notifications displayed correctly with category emojis
 
-### Phase 4: Mobile App (Expo React Native)
+### Phase 4: Mobile App (Expo React Native) (COMPLETED)
 - ✅ Created `/mobile/app/index.tsx`
 - ✅ Location auto-tracking (2-minute interval polling)
 - ✅ Task staging system (add tasks one-by-one before saving)
@@ -57,7 +57,7 @@ GeoMind is an intelligent location-based reminder system that automatically noti
 - ✅ Offline support with expo-notifications
 - ✅ Beautiful gradient UI with category emojis
 
-### Phase 5: Web Dashboard (IN PROGRESS)
+### Phase 5: Web Dashboard (COMPLETED)
 - ✅ Created React web app scaffold
 - ✅ 4-tab navigation: Dashboard | Manage Tasks | Analytics | Location Simulator
 - ✅ **Dashboard**: Stats cards (total/pending/completed/completion rate), task list, category distribution
@@ -65,17 +65,17 @@ GeoMind is an intelligent location-based reminder system that automatically noti
 - ✅ **Analytics**: Timeline charts, trigger rate by priority, category distribution
 - ✅ **LocationSimulator**: Manual lat/lng input to test geo-matching system
 - ✅ Responsive CSS styling with color-coded categories
-- 🔄 **Pending**: npm install (dependencies not yet installed)
+- ✅ **Dependencies**: All packages installed and functioning locally
 
 ---
 
 ## 🚀 What We Will Do in the Future
 
-### Phase 6: Web App Completion & Deployment
-- [ ] Complete npm install for all React dependencies
-- [ ] Add React Router for better navigation (currently using tab state)
-- [ ] Rename all .js files to .jsx (React convention)
-- [ ] Test web app with running backend
+### Phase 6: Web App Completion & Deployment (IN PROGRESS)
+- [x] Complete npm install for all React dependencies
+- [x] Add React Router for better navigation (currently using tab state)
+- [x] Rename all .js files to .jsx (React convention)
+- [x] Test web app with running backend
 - [ ] Deploy to Vercel or Netlify
 
 ### Phase 7: AI/ML/NLP Integration (COMPLETED)
@@ -92,16 +92,17 @@ GeoMind is an intelligent location-based reminder system that automatically noti
   - Show ML `✨ Suggested category` badges in real-time on Dashboard
   - Feed corrected tasks safely back to ML for continuous retraining loops
 
-### Phase 8: Advanced Features
+### Phase 8: Advanced Features (IN PROGRESS)
 - [ ] Hierarchical categories (grocery → fruits, dairy, beverage)
-- [ ] User authentication with JWT
+- [x] User authentication with JWT (Clerk for Web, Custom JWT for Mobile implemented)
 - [ ] Multi-user support with database isolation
 - [ ] Notification history and audit logs
 - [ ] Custom location radius per task
 - [ ] Recurring reminders (weekly, monthly)
-- [ ] Integration with Google Maps/Apple Maps
+- [x] Integration with Google Maps/Apple Maps (Implemented via Leaflet & react-native-webview)
 
 ### Phase 9: Testing & Performance
+- [x] Integrate Open Source Routing Machine (OSRM) and Overpass OSM APIs for cost-free, high-performance geospatial routing and ETA calculations.
 - [ ] Unit tests for backend endpoints
 - [ ] E2E tests for mobile app
 - [ ] Load testing for notification system
@@ -112,6 +113,21 @@ GeoMind is an intelligent location-based reminder system that automatically noti
 - [ ] Heroku/Railway deployment
 - [ ] Mobile app distribution (TestFlight, Play Store)
 - [ ] CDN for web app assets
+
+---
+
+## 🌟 Future Upgrades & Improvements (To Make It Even Better)
+
+Once the core phases are completely deployed, the following architectural upgrades will take GeoMind to the next level:
+
+1. **True Mobile Background Processing (Expo Dev Build)**
+   - Transitioning from Expo Go to an Expo Development Build to unlock background GPS polling via `expo-task-manager`. This allows the app to trigger notifications even when swiped away or the phone is locked.
+2. **Real-Time Push Sockets (Socket.io)**
+   - Instead of polling the server or relying solely on manual refresh, integrating WebSockets would allow the dashboard and mobile app to instantly flash celebratory popups the exact microsecond a task is marked complete.
+3. **Smart Polling Acceleration**
+   - Implement dynamic GPS polling rates: check every 10 minutes while driving fast, but increase checking speed to every 1 minute when walking near known task hot-zones to save battery life.
+4. **Machine Learning Refinement**
+   - Feed the SQLite/PostgreSQL `ml_feedback` telemetry back into an automated weekly retraining pipeline, meaning the NLP model autonomously gets smarter as more users correct its mis-categorizations.
 
 ---
 
@@ -194,35 +210,28 @@ GeoMind is an intelligent location-based reminder system that automatically noti
 | 2 | Geo-Matching Engine | ✅ Complete | 100% |
 | 3 | Priority + Batching + Cooldown | ✅ Complete | 100% |
 | 4 | Mobile App (Expo) | ✅ Complete | 100% |
-| 5 | Web Dashboard | 🔄 In Progress | 80% |
-| 6 | Web App Deployment | ⏳ Pending | 0% |
+| 5 | Web Dashboard | ✅ Complete | 100% |
+| 6 | Web App Deployment | 🔄 In Progress | 80% |
 | 7 | ML/NLP Integration | ✅ Complete | 100% |
-| 8 | Advanced Features | 🚀 Planned | 0% |
+| 8 | Advanced Features | 🔄 In Progress | 40% |
 | 9 | Testing & Performance | 🚀 Planned | 0% |
 | 10 | Production Deployment | 🚀 Planned | 0% |
 
-**Overall Completion**: ~70% (Phases 1-4 & 7 done, Phase 5 in progress)
+**Overall Completion**: ~85% (Phases 1-5 & 7 Done. Phase 6 and 8 in progress)
 
 ---
 
 ## 🎯 Next Immediate Steps
 
-1. **Fix Web App Dependencies**
-   - Run `npm install --legacy-peer-deps` in `/web` folder
-   - Convert `.js` files to `.jsx` (optional but recommended)
+1. **Production Deployment (Phase 6 & 10)**
+   - Move off localhost and deploy the Web Frontend to Vercel.
+   - Deploy the Node.js API and Python Machine Learning FastAPI server to Render or Railway.
    
-2. **Complete Web Dashboard**
-   - Ensure all 4 components work correctly
-   - Test with running backend
+2. **Mobile Background GPS (Phase 10)**
+   - Create an EAS Dev Build to enable `expo-task-manager` so the app tracks location while in the background.
    
-3. **Start ML Phase**
-   - Create Python environment in `geomind-ml/`
-   - Build labeled training dataset
-   - Train TF-IDF + Logistic Regression model
-   
-4. **Deploy & Test End-to-End**
-   - Run all three parts: Mobile, Web, Backend
-   - Verify notifications work across all platforms
+3. **Database Cleanup & Optimization**
+   - Lock in database isolations for multi-user capabilities now that Clerk and JWT authentication are wired up.
 
 ---
 
@@ -231,6 +240,7 @@ GeoMind is an intelligent location-based reminder system that automatically noti
 ```sql
 CREATE TABLE smart_tasks (
   id SERIAL PRIMARY KEY,
+  user_id VARCHAR(255),
   raw_text TEXT NOT NULL,
   category VARCHAR(50),
   priority VARCHAR(10) DEFAULT 'medium',
@@ -246,6 +256,23 @@ CREATE TABLE places (
   category VARCHAR(50),
   geom geometry(Point, 4326)
 );
+
+CREATE TABLE ml_feedback (
+  id SERIAL PRIMARY KEY,
+  task_id INTEGER,
+  task_text TEXT,
+  predicted_category VARCHAR(50),
+  corrected_category VARCHAR(50),
+  user_rating INTEGER,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE mobile_users (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
 ```
 
 ---
@@ -259,7 +286,7 @@ CREATE TABLE places (
   ├── mobile/          (React Native + Expo)
   ├── web/             (React 18)
   ├── server/          (Node.js + Express)
-  └── geomind-ml/      (Python + FastAPI) [TBD]
+  └── ml/              (Python + FastAPI)
   ```
 
 ---

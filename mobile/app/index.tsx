@@ -1,1138 +1,391 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  SafeAreaView,
-  Animated,
-  Modal,
-  RefreshControl,
-} from "react-native";
-import * as Location from "expo-location";
-import * as Notifications from "expo-notifications";
+  View, Text, TextInput, TouchableOpacity, ScrollView,
+  ActivityIndicator, SafeAreaView, Animated, RefreshControl,
+  StyleSheet, StatusBar, Alert,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
+import * as Haptics from 'expo-haptics';
+import { Link } from 'expo-router';
+import { useAuthContext } from './_layout';
+import { fetchTasks, createTask, sendLocationCheck, predictCategory, Task } from '../services/api';
 
-// Configure notifications
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+// ── Safe notifications shim (removed from Expo Go SDK 53) ────────────────────
+let Notifications: any = null;
+// Removed explicit require('expo-notifications') as it triggers terminal/LogBox errors in Expo Go SDK 53.
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
-
-// Request notification permissions on app load
-const requestNotificationPermissions = async () => {
-  const { status } = await Notifications.requestPermissionsAsync();
-  if (status !== 'granted') {
-    console.warn('❌ Notification permissions not granted');
-  } else {
-    console.log('✅ Notification permissions granted');
-  }
-};
-const LOCATION_POLL_INTERVAL = 120000; // 2 minutes
-
-// Color Scheme
-const COLORS = {
-  primary: "#0066FF",
-  success: "#34C759",
-  danger: "#FF3B30",
-  warning: "#FF9500",
-  background: "#F8F9FA",
-  surface: "#FFFFFF",
-  text: "#1A1A1A",
-  textSecondary: "#666666",
-  border: "#E5E5EA",
-  triggered: "#E8F5E9",
-  triggeredBorder: "#4CAF50",
+const requestNotifPermissions = async () => {
+  if (!Notifications) return;
+  try { await Notifications.requestPermissionsAsync(); } catch { /* ignore */ }
 };
 
-interface Task {
-  id: string;
-  text: string;
-  category: string;
-  isTriggered: boolean;
-  priority: "high" | "medium" | "low";
-  isSelected: boolean;
-}
+const scheduleNotification = async (title: string, body: string) => {
+  if (!Notifications) return;
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: { title, body, sound: true, badge: 1 },
+      trigger: null,
+    });
+  } catch { /* ignore */ }
+};
 
-interface ParsedTask {
-  text: string;
-  category: string;
-}
+// ── Constants ─────────────────────────────────────────────────────────────────
+const CAT_COLOR: Record<string, string> = {
+  grocery: '#2ECC71', pharmacy: '#3498DB', clothing: '#E67E22', general: '#9B59B6',
+};
+const CAT_EMOJI: Record<string, string> = {
+  grocery: '🛒', pharmacy: '💊', clothing: '👕', general: '📌',
+};
+const PRI_COLOR: Record<string, string> = { high: '#E74C3C', medium: '#F39C12', low: '#95A5A6' };
 
 export default function HomeScreen() {
-  const [text, setText] = useState("");
-  const [taskList, setTaskList] = useState<Task[]>([]);
-  const [result, setResult] = useState("");
-  const [logs, setLogs] = useState<string[]>([]);
-  const [showPriorityModal, setShowPriorityModal] = useState(false);
-  const [stagingTasks, setStagingTasks] = useState<(ParsedTask & { priority: "high" | "medium" | "low" })[]>([]);
-  const [isTracking, setIsTracking] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [currentLocation, setCurrentLocation] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
-  const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
+  const [tasks, setTasks]             = useState<Task[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [refreshing, setRefreshing]   = useState(false);
+  const [isTracking, setIsTracking]   = useState(false);
+  const [checking, setChecking]       = useState(false);
+  const [location, setLocation]       = useState<{ lat: number; lng: number } | null>(null);
+  const [locAccuracy, setLocAccuracy] = useState<number | null>(null);
+  const [trackResult, setTrackResult] = useState('');
 
-  const trackingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const [quickText, setQuickText] = useState('');
+  const [quickPri, setQuickPri]   = useState<'high'|'medium'|'low'>('medium');
+  const [quickCat, setQuickCat]   = useState('general');
+  const [mlSuggest, setMlSuggest] = useState<string | null>(null);
+  const [adding, setAdding]       = useState(false);
 
-  // Pulse animation for tracking indicator
+  // ✅ Use JWT auth context instead of Clerk hooks
+  const { user, signOut } = useAuthContext();
+  const isSignedIn = !!user;
+
+  const trackingInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pulseAnim        = useRef(new Animated.Value(1)).current;
+  const mlTimer          = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const load = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true); else setLoading(true);
+    try { const t = await fetchTasks(); setTasks(t); }
+    catch (e: any) {
+      if (!isRefresh) Alert.alert('Load Error', e.message || 'Could not load tasks');
+    }
+    finally { setRefreshing(false); setLoading(false); }
+  };
+
+  useEffect(() => {
+    load();
+    (async () => {
+      await requestNotifPermissions();
+      await Location.requestForegroundPermissionsAsync();
+    })();
+  }, []);
+
+  // ML debounce
+  useEffect(() => {
+    if (quickText.trim().length < 4 || quickCat !== 'general') { setMlSuggest(null); return; }
+    if (mlTimer.current) clearTimeout(mlTimer.current);
+    mlTimer.current = setTimeout(async () => {
+      const cat = await predictCategory(quickText.trim());
+      setMlSuggest(cat);
+    }, 500);
+    return () => { if (mlTimer.current) clearTimeout(mlTimer.current); };
+  }, [quickText, quickCat]);
+
+  // Pulse animation while tracking
   useEffect(() => {
     if (isTracking) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.2,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
+      const loop = Animated.loop(Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.06, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1,    duration: 900, useNativeDriver: true }),
+      ]));
+      loop.start();
+      return () => loop.stop();
     }
   }, [isTracking]);
 
-  // Request notification permissions on app startup
-  useEffect(() => {
-    requestNotificationPermissions();
-    fetchTasksFromServer(); // U6: load existing tasks on startup
-  }, []);
+  const getLocation = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') return null;
+    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+    setLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+    setLocAccuracy(loc.coords.accuracy);
+    return { lat: loc.coords.latitude, lng: loc.coords.longitude };
+  };
 
-  // U6: Fetch existing tasks from server
-  const fetchTasksFromServer = async (isRefresh = false) => {
-    if (isRefresh) setIsRefreshing(true);
+  const checkNearby = async () => {
+    setChecking(true);
     try {
-      const res = await fetch(`${API_URL}/api/tasks`);
-      const data = await res.json();
-      const fetched: Task[] = data.map((t: any) => ({
-        id: String(t.id),
-        text: t.raw_text || t.text,
-        category: t.category,
-        isTriggered: t.status === 'triggered',
-        priority: t.priority || 'medium',
-        isSelected: t.status !== 'triggered',
-      }));
-      setTaskList(fetched);
-      if (isRefresh) addLog(`🔄 Refreshed: ${fetched.length} tasks loaded`);
-    } catch (err) {
-      addLog(`❌ Could not load tasks from server`);
-    } finally {
-      if (isRefresh) setIsRefreshing(false);
-    }
-  };
-
-  const addLog = (message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    const logEntry = `[${timestamp}] ${message}`;
-    console.log(logEntry);
-    setLogs((prev) => [logEntry, ...prev].slice(0, 15));
-  };
-
-  const categorizeTask = (taskText: string): string => {
-    const t = taskText.toLowerCase();
-    if (t.includes("shirt") || t.includes("clothes") || t.includes("dress") || t.includes("wear"))
-      return "clothing";
-    else if (t.includes("apple") || t.includes("milk") || t.includes("fruit") || t.includes("vegetable") || t.includes("grocery"))
-      return "grocery";
-    else if (t.includes("medicine") || t.includes("tablet") || t.includes("pharmacy"))
-      return "pharmacy";
-    return "general";
-  };
-
-  const parseMultipleTasks = (input: string): ParsedTask[] => {
-    const tasks = input.split(",").map((t) => t.trim()).filter((t) => t.length > 0);
-    return tasks.map((t) => ({
-      text: t,
-      category: categorizeTask(t),
-    }));
-  };
-
-  const addTaskToStaging = () => {
-    if (!text.trim()) {
-      addLog("⚠️ Task text is empty");
-      return;
-    }
-
-    const category = categorizeTask(text);
-    const newStagingTask = {
-      text: text.trim(),
-      category,
-      priority: "high" as const,
-    };
-
-    setStagingTasks((prev) => [newStagingTask, ...prev]);
-    addLog(`➕ Added to staging: "${text.trim()}" (${category})`);
-    setText("");
-  };
-
-  const removeFromStaging = (index: number) => {
-    setStagingTasks((prev) => prev.filter((_, i) => i !== index));
-    addLog(`🗑️ Removed from staging`);
-  };
-
-  const changeStagingPriority = (index: number, newPriority: "high" | "medium" | "low") => {
-    setStagingTasks((prev) => {
-      const updated = [...prev];
-      updated[index].priority = newPriority;
-      return updated;
-    });
-  };
-
-  const saveStagingTasks = async () => {
-    if (stagingTasks.length === 0) {
-      addLog("⚠️ No tasks to save");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      addLog(`💾 Saving ${stagingTasks.length} task(s) with priorities...`);
-
-      for (const task of stagingTasks) {
-        const res = await fetch(`${API_URL}/tasks`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ text: task.text, priority: task.priority }),
-        });
-
-        const data = await res.json();
-        const newTask: Task = {
-          id: data.id,
-          text: task.text,
-          category: data.category,
-          isTriggered: false,
-          priority: task.priority,
-          isSelected: true,
-        };
-        setTaskList((prev) => [newTask, ...prev]);
-        addLog(`✅ ${task.priority.toUpperCase()}: ${task.text} (${data.category})`);
-      }
-
-      setResult(`✅ ${stagingTasks.length} reminder(s) saved & ready to track`);
-      setStagingTasks([]);
-      setShowPriorityModal(false);
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      addLog(`❌ Save failed: ${errorMsg}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const sendLocation = async () => {
-    setIsLoading(true);
-    try {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        addLog("❌ Location permission denied");
-        setResult("Permission denied");
-        setIsLoading(false);
-        return;
-      }
-
-      addLog("📍 Fetching location from Google (High Accuracy)...");
-
-      // Request High Accuracy location from Google
-      let location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-        timeInterval: 1000,
-        distanceInterval: 10,
-      });
-
-      const { latitude, longitude, accuracy } = location.coords;
-      setCurrentLocation({ latitude, longitude });
-      setLocationAccuracy(accuracy);
-
-      addLog(
-        `📍 Location: ${latitude.toFixed(6)}, ${longitude.toFixed(6)} (±${accuracy?.toFixed(0)}m)`
-      );
-
-      // Get selected tasks with highest priority first
-      const selectedTasks = taskList
-        .filter((t) => t.isSelected && !t.isTriggered)
-        .sort((a, b) => {
-          const priorityOrder = { high: 0, medium: 1, low: 2 };
-          return priorityOrder[a.priority] - priorityOrder[b.priority];
-        });
-
-      if (selectedTasks.length === 0) {
-        setResult("✨ No active reminders to check");
-        addLog("✨ No selected reminders");
-        setIsLoading(false);
-        return;
-      }
-
-      addLog(`🎯 Checking ${selectedTasks.length} selected task(s)...`);
-
-      const res = await fetch(`${API_URL}/location`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          lat: latitude,
-          lng: longitude,
-        }),
-      });
-
-      const data = await res.json();
-
-      // Category emoji mapping
-      const categoryEmoji = {
-        grocery: "🛒",
-        pharmacy: "💊",
-        clothing: "👕",
-        general: "📌",
-      };
-
-      if (data.batches && data.batches.length > 0) {
-        addLog(`📦 Received ${data.batches.length} batch(es)`);
-
-        // Collect all triggered tasks for taskList update
-        const allTriggeredTaskIds: string[] = [];
-        data.batches.forEach((batch: any) => {
-          batch.tasks.forEach((t: any) => {
-            allTriggeredTaskIds.push(t.task_id);
-          });
-        });
-
-        // Update task list - mark all triggered tasks
-        setTaskList((prev) =>
-          prev.map((task) =>
-            allTriggeredTaskIds.includes(task.id) ? { ...task, isTriggered: true } : task
-          )
+      const pos = await getLocation();
+      if (!pos) { setTrackResult('❌ GPS permission denied'); return; }
+      const data = await sendLocationCheck(pos.lat, pos.lng);
+      if (!data?.batches?.length) { setTrackResult('✨ No reminders triggered nearby'); return; }
+      const triggered: string[] = [];
+      for (const batch of data.batches) {
+        const emoji = CAT_EMOJI[batch.category] || '📌';
+        triggered.push(`${emoji} ${batch.category}: ${batch.tasks.map((t: any) => t.task).join(', ')}`);
+        setTasks(prev => prev.map(t =>
+          batch.tasks.find((b: any) => b.task_id === t.id) ? { ...t, status: 'triggered' } : t
+        ));
+        await scheduleNotification(
+          `🗺️ GeoMind — ${emoji} ${batch.category}`,
+          batch.tasks.map((t: any) => `${t.task} → ${t.place}`).join('\n'),
         );
-
-        // Send one notification per batch
-        for (const batch of data.batches) {
-          const emoji = categoryEmoji[batch.category as keyof typeof categoryEmoji] || "📌";
-          let title = `${emoji} ${batch.count} ${batch.category} reminder${batch.count !== 1 ? "s" : ""}`;
-          let body = "";
-
-          // Build summary with top 3 items (or all if less than 3)
-          const displayTasks = batch.tasks.slice(0, 3);
-          displayTasks.forEach((task: any) => {
-            const priorityBadge =
-              task.priority === "high"
-                ? "🔴"
-                : task.priority === "medium"
-                  ? "🟠"
-                  : "🟡";
-            body += `${priorityBadge} ${task.task} → ${task.place}\n`;
-          });
-
-          // Add "...and X more" if there are more than 3
-          if (batch.tasks.length > 3) {
-            body += `\n+${batch.tasks.length - 3} more...`;
-          }
-
-          setResult(`✅ ${title}`);
-          addLog(`✅ ${title}: ${batch.tasks.length} task(s)`);
-
-          try {
-            await Notifications.scheduleNotificationAsync({
-              content: {
-                title: "🗺️ GeoMind Alert",
-                body: body.trim(),
-                sound: true,
-                badge: 1,
-              },
-              trigger: null,
-            });
-            addLog(`🔔 Notification sent for ${batch.category}`);
-          } catch (notifErr) {
-            addLog(`❌ Notification error: ${notifErr}`);
-          }
-        }
-      } else {
-        setResult("✨ No reminders triggered nearby");
-        addLog("✨ No matches yet");
       }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      addLog(`❌ Error: ${errorMsg}`);
-      setResult("Error: " + errorMsg);
-    } finally {
-      setIsLoading(false);
-    }
+      setTrackResult('✅ ' + triggered.join('  ·  '));
+    } catch (err: any) {
+      setTrackResult('❌ ' + err.message);
+    } finally { setChecking(false); }
   };
 
-  const startAutoTracking = async () => {
-    const selectedCount = taskList.filter((t) => t.isSelected && !t.isTriggered).length;
-    if (selectedCount === 0) {
-      addLog("⚠️ No selected reminders to track");
-      setResult("Select reminders first");
-      return;
-    }
-
-    addLog(`🚀 Starting auto-tracking (${selectedCount} reminder(s), every 2 min)`);
+  const startTracking = async () => {
+    const active = tasks.filter(t => t.status !== 'triggered' && t.status !== 'completed');
+    if (!active.length) { setTrackResult('⚠️ No active tasks to track'); return; }
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setIsTracking(true);
-    setResult("🟢 Auto-tracking active - Checking every 2 min");
-
-    // Send location immediately
-    await sendLocation();
-
-    // Then set up interval
-    trackingIntervalRef.current = setInterval(() => {
-      sendLocation();
-    }, LOCATION_POLL_INTERVAL);
+    const notifNote = Notifications ? '' : '  (notifications unavailable in Expo Go)';
+    setTrackResult(`🟢 Tracking active — checking every 2 min${notifNote}`);
+    await checkNearby();
+    trackingInterval.current = setInterval(checkNearby, 120000);
   };
 
-  const stopAutoTracking = () => {
-    if (trackingIntervalRef.current) {
-      clearInterval(trackingIntervalRef.current);
-      trackingIntervalRef.current = null;
-    }
+  const stopTracking = () => {
+    if (trackingInterval.current) clearInterval(trackingInterval.current);
     setIsTracking(false);
-    setResult("⏹️ Auto-tracking stopped");
-    addLog("⏹️ Auto-tracking stopped");
+    setTrackResult('⏹️ Tracking stopped');
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
   };
 
-  const addTask = async () => {
-    if (!text.trim()) {
-      addLog("⚠️ Task text is empty");
-      return;
-    }
-
-    setIsLoading(true);
+  const handleQuickAdd = async () => {
+    if (!quickText.trim()) return;
+    setAdding(true);
     try {
-      addLog(`📝 Saving task: "${text}"`);
-      const res = await fetch(`${API_URL}/tasks`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ text }),
-      });
-
-      const data = await res.json();
-      const newTask: Task = {
-        id: data.id,
-        text: text,
-        category: data.category,
-        isTriggered: false,
-        priority: "high",
-        isSelected: true,
-      };
-      setTaskList((prev) => [newTask, ...prev]);
-      setResult(`✅ Task saved as "${data.category}"`);
-      addLog(`✅ Task categorized as: ${data.category}`);
-      setText("");
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      addLog(`❌ Task save failed: ${errorMsg}`);
-      setResult("Error saving task");
-    } finally {
-      setIsLoading(false);
-    }
+      const t = await createTask(quickText.trim(), quickPri, quickCat !== 'general' ? quickCat : undefined);
+      setTasks(prev => [t, ...prev]);
+      setQuickText(''); setMlSuggest(null);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch (e: any) {
+      Alert.alert('Create Failed', e.message || 'Could not create task');
+    } finally { setAdding(false); }
   };
 
-  const toggleTaskSelection = (id: string) => {
-    setTaskList((prev) =>
-      prev.map((task) =>
-        task.id === id ? { ...task, isSelected: !task.isSelected } : task
-      )
-    );
-  };
-
-  useEffect(() => {
-    return () => {
-      if (trackingIntervalRef.current) {
-        clearInterval(trackingIntervalRef.current);
-      }
-    };
-  }, []);
-
-  const getPriorityColor = (priority: string) => {
-    const colors: Record<string, string> = {
-      high: "#FF3B30",
-      medium: "#FF9500",
-      low: "#FFD60A",
-    };
-    return colors[priority] || "#666";
-  };
-
-  const getCategoryColor = (category: string) => {
-    const colors: Record<string, string> = {
-      grocery: "#FF6B6B",
-      pharmacy: "#4ECDC4",
-      clothing: "#FFD93D",
-      general: "#95E1D3",
-    };
-    return colors[category] || "#95E1D3";
-  };
+  const pending   = tasks.filter(t => t.status === 'pending').length;
+  const triggered = tasks.filter(t => t.status === 'triggered').length;
+  const total     = tasks.length;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
+    <SafeAreaView style={s.safe}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F0F4FF" />
       <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={() => fetchTasksFromServer(true)}
-            tintColor={COLORS.primary}
-          />
-        }
+        style={s.scroll}
+        contentContainerStyle={s.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor="#0066FF" />}
       >
-        {/* Header Section */}
-        <View style={{ marginTop: 12, marginBottom: 24 }}>
-          <Text style={{ fontSize: 32, fontWeight: "800", color: COLORS.text }}>
-            🗺️ GeoMind
-          </Text>
-          <Text
-            style={{
-              fontSize: 13,
-              color: COLORS.textSecondary,
-              marginTop: 4,
-              fontWeight: "500",
-            }}
-          >
-            Smart Location-Based Reminders
-          </Text>
+        {/* Header */}
+        <View style={s.header}>
+          <View>
+            <Text style={s.logo}>🗺️ GeoMind</Text>
+            <Text style={s.logoSub}>Smart Location Reminders</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={s.headerBadge}>
+              <View style={[s.dot, isTracking ? s.dotActive : s.dotIdle]} />
+              <Text style={s.headerBadgeText}>{isTracking ? 'Live' : 'Idle'}</Text>
+            </View>
+            {isSignedIn ? (
+              <TouchableOpacity style={s.authBtn} onPress={signOut}>
+                <Text style={s.authBtnText}>Logout</Text>
+              </TouchableOpacity>
+            ) : (
+              <Link href="/sign-in" asChild>
+                <TouchableOpacity style={s.authBtn}>
+                  <Text style={s.authBtnText}>Sign In</Text>
+                </TouchableOpacity>
+              </Link>
+            )}
+          </View>
         </View>
 
-        {/* Status Card */}
-        {isTracking && (
-          <Animated.View
-            style={{
-              transform: [{ scale: pulseAnim }],
-              marginBottom: 16,
-            }}
-          >
-            <View
-              style={{
-                backgroundColor: COLORS.success,
-                padding: 12,
-                borderRadius: 12,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 12,
-              }}
-            >
-              <View
-                style={{
-                  width: 12,
-                  height: 12,
-                  borderRadius: 6,
-                  backgroundColor: COLORS.background,
-                }}
-              />
-              <Text
-                style={{
-                  color: COLORS.surface,
-                  fontWeight: "600",
-                  fontSize: 14,
-                }}
-              >
-                Auto-Tracking Active • Sends location every 2 min
-              </Text>
-            </View>
-          </Animated.View>
+        {/* Expo Go notification banner */}
+        {!Notifications && (
+          <View style={s.warnCard}>
+            <Text style={s.warnText}>⚠️ Push notifications disabled in Expo Go. Use a dev build to enable them.</Text>
+          </View>
         )}
 
-        {/* Location Display Card */}
-        {currentLocation && (
-          <View
-            style={{
-              backgroundColor: COLORS.surface,
-              padding: 12,
-              borderRadius: 12,
-              marginBottom: 16,
-              borderWidth: 1,
-              borderColor: COLORS.border,
-            }}
-          >
-            <Text style={{ fontSize: 12, fontWeight: "600", color: COLORS.textSecondary }}>
-              📍 Current Location (Google)
-            </Text>
-            <Text
-              style={{
-                fontSize: 13,
-                color: COLORS.text,
-                marginTop: 6,
-                fontFamily: "Courier New",
-              }}
-            >
-              {currentLocation.latitude.toFixed(6)}, {currentLocation.longitude.toFixed(6)}
-            </Text>
-            {locationAccuracy && (
-              <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginTop: 4 }}>
-                Accuracy: ±{locationAccuracy.toFixed(0)}m {locationAccuracy < 20 ? "✅ (Excellent - Real GPS)" : locationAccuracy < 50 ? "⚠️ (Good)" : "❌ (WiFi/Cell)"}
+        {/* Location card */}
+        {location && (
+          <View style={s.locCard}>
+            <Text style={s.locLabel}>📡 Live GPS</Text>
+            <Text style={s.locCoords}>{location.lat.toFixed(5)}, {location.lng.toFixed(5)}</Text>
+            {locAccuracy !== null && (
+              <Text style={s.locAccuracy}>
+                ±{locAccuracy.toFixed(0)}m {locAccuracy < 20 ? '✅ Excellent' : locAccuracy < 50 ? '⚠️ Good' : '📡 WiFi/Cell'}
               </Text>
             )}
           </View>
         )}
 
-        {/* Input Section */}
-        <View
-          style={{
-            backgroundColor: COLORS.surface,
-            padding: 16,
-            borderRadius: 16,
-            marginBottom: 16,
-            borderWidth: 1,
-            borderColor: COLORS.border,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color: COLORS.text,
-              marginBottom: 8,
-            }}
-          >
-            Add Reminder
-          </Text>
-          <Text
-            style={{
-              fontSize: 11,
-              color: COLORS.textSecondary,
-              marginBottom: 12,
-            }}
-          >
-            Add one task at a time, set priority, then save
-          </Text>
-          <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
-            <TextInput
-              placeholder="e.g., Buy apples"
-              value={text}
-              onChangeText={setText}
-              style={{
-                flex: 1,
-                borderWidth: 1,
-                borderColor: COLORS.border,
-                padding: 12,
-                borderRadius: 10,
-                backgroundColor: COLORS.background,
-                fontSize: 14,
-                color: COLORS.text,
-              }}
-              placeholderTextColor={COLORS.textSecondary}
-            />
-            <TouchableOpacity
-              onPress={addTaskToStaging}
-              disabled={isLoading}
-              style={{
-                backgroundColor: COLORS.primary,
-                paddingHorizontal: 16,
-                borderRadius: 10,
-                justifyContent: "center",
-                opacity: isLoading ? 0.6 : 1,
-              }}
-            >
-              <Text
-                style={{
-                  color: COLORS.surface,
-                  fontWeight: "700",
-                  fontSize: 16,
-                }}
-              >
-                ➕
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Staging Tasks Preview */}
-          {stagingTasks.length > 0 && (
-            <View style={{ gap: 8 }}>
-              <Text style={{ fontSize: 12, fontWeight: "600", color: COLORS.textSecondary }}>
-                Staging ({stagingTasks.length}) - Set priorities below
-              </Text>
-              {stagingTasks.map((task, idx) => (
-                <View
-                  key={idx}
-                  style={{
-                    backgroundColor: COLORS.background,
-                    padding: 10,
-                    borderRadius: 8,
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    borderLeftWidth: 4,
-                    borderLeftColor: getPriorityColor(task.priority),
-                  }}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 12, fontWeight: "600", color: COLORS.text }}>
-                      {task.text}
-                    </Text>
-                    <Text style={{ fontSize: 10, color: COLORS.textSecondary, marginTop: 2 }}>
-                      {task.category} • {task.priority.toUpperCase()}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => removeFromStaging(idx)}
-                    style={{ padding: 4 }}
-                  >
-                    <Text style={{ fontSize: 16 }}>🗑️</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-              {/* Save Staged Tasks Button */}
-              <TouchableOpacity
-                onPress={() => setShowPriorityModal(true)}
-                disabled={isLoading}
-                style={{
-                  backgroundColor: COLORS.primary,
-                  paddingVertical: 12,
-                  borderRadius: 10,
-                  alignItems: "center",
-                  marginTop: 12,
-                  opacity: isLoading ? 0.6 : 1,
-                }}
-              >
-                <Text
-                  style={{
-                    color: COLORS.surface,
-                    fontWeight: "700",
-                    fontSize: 14,
-                  }}
-                >
-                  ⚙️ Set Priorities & Save
-                </Text>
-              </TouchableOpacity>
+        {/* Stats */}
+        <View style={s.statsGrid}>
+          {[
+            { label: 'Total',     value: total,     icon: '📋', color: '#0066FF' },
+            { label: 'Pending',   value: pending,   icon: '⏳', color: '#F39C12' },
+            { label: 'Triggered', value: triggered, icon: '✅', color: '#2ECC71' },
+            { label: 'Done %',    value: total > 0 ? `${Math.round(((total - pending) / total) * 100)}%` : '0%', icon: '📊', color: '#9B59B6' },
+          ].map(s2 => (
+            <View key={s2.label} style={s.statCard}>
+              <Text style={s.statIcon}>{s2.icon}</Text>
+              <Text style={[s.statVal, { color: s2.color }]}>{s2.value}</Text>
+              <Text style={s.statLabel}>{s2.label}</Text>
             </View>
-          )}
+          ))}
         </View>
 
-        {/* Action Buttons */}
-        <View style={{ gap: 10, marginBottom: 16 }}>
+        {/* Tracking result */}
+        {!!trackResult && (
+          <View style={[s.resultCard, trackResult.includes('🟢') ? s.resultGreen : trackResult.includes('❌') ? s.resultRed : s.resultBlue]}>
+            <Text style={s.resultText}>{trackResult}</Text>
+          </View>
+        )}
+
+        {/* Tracking buttons */}
+        <View style={s.trackRow}>
           {!isTracking ? (
-            <TouchableOpacity
-              onPress={startAutoTracking}
-              disabled={isLoading || taskList.filter((t) => t.isSelected && !t.isTriggered).length === 0}
-              style={{
-                backgroundColor: COLORS.success,
-                paddingVertical: 14,
-                borderRadius: 12,
-                alignItems: "center",
-                opacity: isLoading || taskList.filter((t) => t.isSelected && !t.isTriggered).length === 0 ? 0.5 : 1,
-              }}
-            >
-              <Text
-                style={{
-                  color: COLORS.surface,
-                  fontWeight: "700",
-                  fontSize: 16,
-                }}
-              >
-                ▶️ Start Auto-Tracking
-              </Text>
+            <TouchableOpacity style={[s.btn, s.btnGreen]} onPress={startTracking} disabled={checking}>
+              <Ionicons name="navigate" size={18} color="#fff" />
+              <Text style={s.btnText}>Start Tracking</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity
-              onPress={stopAutoTracking}
-              style={{
-                backgroundColor: COLORS.danger,
-                paddingVertical: 14,
-                borderRadius: 12,
-                alignItems: "center",
-              }}
-            >
-              <Text
-                style={{
-                  color: COLORS.surface,
-                  fontWeight: "700",
-                  fontSize: 16,
-                }}
-              >
-                ⏹️ Stop Auto-Tracking
-              </Text>
+            <TouchableOpacity style={[s.btn, s.btnRed]} onPress={stopTracking}>
+              <Ionicons name="stop" size={18} color="#fff" />
+              <Text style={s.btnText}>Stop Tracking</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity
-            onPress={sendLocation}
-            disabled={isLoading}
-            style={{
-              backgroundColor: COLORS.warning,
-              paddingVertical: 14,
-              borderRadius: 12,
-              alignItems: "center",
-              flexDirection: "row",
-              justifyContent: "center",
-              gap: 8,
-              opacity: isLoading ? 0.6 : 1,
-            }}
-          >
-            {isLoading && <ActivityIndicator size="small" color={COLORS.surface} />}
-            <Text
-              style={{
-                color: COLORS.surface,
-                fontWeight: "700",
-                fontSize: 16,
-              }}
-            >
-              {isLoading ? "Checking..." : "🔍 Check Nearby Now"}
-            </Text>
+          <TouchableOpacity style={[s.btn, s.btnBlue, { flex: 1 }]} onPress={checkNearby} disabled={checking}>
+            {checking ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="search" size={18} color="#fff" />}
+            <Text style={s.btnText}>{checking ? 'Checking…' : 'Check Now'}</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Result Display */}
-        {result && (
-          <View
-            style={{
-              backgroundColor: result.includes("✅")
-                ? COLORS.triggered
-                : result.includes("❌")
-                  ? "#FFEBEE"
-                  : COLORS.triggeredBorder + "20",
-              paddingVertical: 12,
-              paddingHorizontal: 14,
-              borderRadius: 12,
-              marginBottom: 16,
-              borderLeftWidth: 4,
-              borderLeftColor: result.includes("✅")
-                ? COLORS.triggeredBorder
-                : result.includes("❌")
-                  ? COLORS.danger
-                  : COLORS.warning,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 14,
-                color: COLORS.text,
-                fontWeight: "500",
-              }}
-            >
-              {result}
-            </Text>
+        {/* Quick Add */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>⚡ Quick Add Task</Text>
+          <View style={s.inputRow}>
+            <TextInput
+              style={s.input}
+              placeholder="Buy milk, Pick up medicine…"
+              placeholderTextColor="#AAB"
+              value={quickText}
+              onChangeText={setQuickText}
+              returnKeyType="done"
+              onSubmitEditing={handleQuickAdd}
+            />
+            <TouchableOpacity style={s.addBtn} onPress={handleQuickAdd} disabled={adding || !quickText.trim()}>
+              {adding ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="add" size={22} color="#fff" />}
+            </TouchableOpacity>
           </View>
-        )}
 
-        {/* Saved Tasks Section */}
-        {taskList.length > 0 && (
-          <View style={{ marginBottom: 16 }}>
-            <Text
-              style={{
-                fontSize: 14,
-                fontWeight: "700",
-                color: COLORS.text,
-                marginBottom: 12,
-              }}
-            >
-              📋 Active Reminders ({taskList.filter((t) => !t.isTriggered).length}/{taskList.length})
-            </Text>
-            {taskList.map((task) => (
-              <TouchableOpacity
-                key={task.id}
-                onPress={() => !task.isTriggered && toggleTaskSelection(task.id)}
-                disabled={task.isTriggered}
-                style={{
-                  backgroundColor: task.isTriggered
-                    ? COLORS.triggered
-                    : task.isSelected
-                      ? COLORS.surface
-                      : "#F0F0F0",
-                  padding: 14,
-                  borderRadius: 12,
-                  marginBottom: 8,
-                  borderWidth: 2,
-                  borderColor: task.isSelected ? getPriorityColor(task.priority) : COLORS.border,
-                  opacity: task.isTriggered ? 0.6 : 1,
-                }}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                      <View
-                        style={{
-                          width: 20,
-                          height: 20,
-                          borderRadius: 4,
-                          borderWidth: 2,
-                          borderColor: getPriorityColor(task.priority),
-                          backgroundColor: task.isSelected ? getPriorityColor(task.priority) : "transparent",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        {task.isSelected && (
-                          <Text style={{ color: COLORS.surface, fontWeight: "bold" }}>✓</Text>
-                        )}
-                      </View>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          fontWeight: "600",
-                          color: COLORS.text,
-                          flex: 1,
-                        }}
-                      >
-                        {task.text}
-                      </Text>
-                    </View>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
-                      <View
-                        style={{
-                          paddingHorizontal: 8,
-                          paddingVertical: 4,
-                          backgroundColor: getCategoryColor(task.category),
-                          borderRadius: 6,
-                        }}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 11,
-                            fontWeight: "600",
-                            color: COLORS.surface,
-                          }}
-                        >
-                          {task.category}
-                        </Text>
-                      </View>
-                      {task.isSelected && (
-                        <View
-                          style={{
-                            paddingHorizontal: 8,
-                            paddingVertical: 4,
-                            backgroundColor: getPriorityColor(task.priority),
-                            borderRadius: 6,
-                          }}
-                        >
-                          <Text
-                            style={{
-                              fontSize: 11,
-                              fontWeight: "600",
-                              color: COLORS.surface,
-                            }}
-                          >
-                            {task.priority.toUpperCase()}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                  {task.isTriggered && (
-                    <Text style={{ fontSize: 20, marginLeft: 8 }}>✅</Text>
-                  )}
-                </View>
+          {mlSuggest && (
+            <TouchableOpacity style={s.mlHint} onPress={() => { setQuickCat(mlSuggest!); setMlSuggest(null); }}>
+              <Text style={s.mlHintText}>✨ ML suggests: <Text style={{ fontWeight: '800' }}>{mlSuggest}</Text>  Tap to accept</Text>
+            </TouchableOpacity>
+          )}
+
+          <View style={s.chipRow}>
+            {(['high','medium','low'] as const).map(p => (
+              <TouchableOpacity key={p} style={[s.chip, quickPri === p && { backgroundColor: PRI_COLOR[p] }]} onPress={() => setQuickPri(p)}>
+                <Text style={[s.chipText, quickPri === p && { color: '#fff' }]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
+              </TouchableOpacity>
+            ))}
+            <View style={s.chipDivider} />
+            {(['general','grocery','pharmacy','clothing'] as const).map(c => (
+              <TouchableOpacity key={c} style={[s.chip, quickCat === c && { backgroundColor: CAT_COLOR[c] }]} onPress={() => setQuickCat(c)}>
+                <Text style={[s.chipText, quickCat === c && { color: '#fff' }]}>{CAT_EMOJI[c]}</Text>
               </TouchableOpacity>
             ))}
           </View>
-        )}
+        </View>
 
-        {/* Logs Section */}
-        <View>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <Text
-              style={{
-                fontSize: 14,
-                fontWeight: "700",
-                color: COLORS.text,
-              }}
-            >
-              📊 Activity Log
-            </Text>
-            {logs.length > 0 && (
-              <TouchableOpacity onPress={() => setLogs([])}>
-                <Text style={{ fontSize: 12, color: COLORS.textSecondary, fontWeight: "600" }}>Clear</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          <View
-            style={{
-              backgroundColor: "#1A1A1A",
-              padding: 12,
-              borderRadius: 12,
-              minHeight: 120,
-            }}
-          >
-            {logs.length === 0 ? (
-              <Text style={{ color: "#666", fontSize: 12 }}>Waiting for activity...</Text>
-            ) : (
-              logs.map((log, idx) => (
-                <Text
-                  key={idx}
-                  style={{
-                    color: "#0F0",
-                    fontSize: 10,
-                    fontFamily: "Courier New",
-                    lineHeight: 14,
-                  }}
-                >
-                  {log}
-                </Text>
-              ))
-            )}
-          </View>
+        {/* Recent Tasks */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>📋 Recent Tasks</Text>
+          {loading ? (
+            <ActivityIndicator color="#0066FF" style={{ marginTop: 12 }} />
+          ) : tasks.length === 0 ? (
+            <Text style={s.empty}>No tasks yet. Add one above! 👆</Text>
+          ) : (
+            tasks.slice(0, 5).map(task => (
+              <View key={task.id} style={[s.taskRow, task.status === 'triggered' && s.taskTriggered]}>
+                <View style={[s.catDot, { backgroundColor: CAT_COLOR[task.category] }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.taskText} numberOfLines={1}>{task.text}</Text>
+                  <Text style={s.taskMeta}>{CAT_EMOJI[task.category]} {task.category}  ·  {task.priority}</Text>
+                </View>
+                <Text style={{ fontSize: 16 }}>{task.status === 'triggered' ? '✅' : task.status === 'completed' ? '🎯' : '⏳'}</Text>
+              </View>
+            ))
+          )}
+          {tasks.length > 5 && (
+            <Text style={s.viewAll}>+ {tasks.length - 5} more — see Tasks tab</Text>
+          )}
         </View>
       </ScrollView>
-
-      {/* Priority Selection Modal */}
-      <Modal visible={showPriorityModal} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}>
-          <View
-            style={{
-              flex: 1,
-              backgroundColor: COLORS.background,
-              marginTop: 80,
-              borderTopLeftRadius: 20,
-              borderTopRightRadius: 20,
-              paddingHorizontal: 16,
-              paddingTop: 20,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 18,
-                fontWeight: "700",
-                color: COLORS.text,
-                marginBottom: 4,
-              }}
-            >
-              Set Priorities for Reminders
-            </Text>
-            <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginBottom: 16 }}>
-              Choose priority level for each reminder
-            </Text>
-
-            <ScrollView style={{ flex: 1 }}>
-              {stagingTasks.map((task, idx) => (
-                <View
-                  key={idx}
-                  style={{
-                    backgroundColor: COLORS.surface,
-                    padding: 14,
-                    borderRadius: 12,
-                    marginBottom: 12,
-                    borderWidth: 1,
-                    borderColor: COLORS.border,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontWeight: "600",
-                      color: COLORS.text,
-                      marginBottom: 8,
-                    }}
-                  >
-                    {task.text}
-                  </Text>
-                  <View
-                    style={{
-                      paddingHorizontal: 8,
-                      paddingVertical: 4,
-                      backgroundColor: getCategoryColor(task.category),
-                      borderRadius: 6,
-                      alignSelf: "flex-start",
-                      marginBottom: 12,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        fontWeight: "600",
-                        color: COLORS.surface,
-                      }}
-                    >
-                      {task.category}
-                    </Text>
-                  </View>
-
-                  {/* Priority Buttons */}
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    {["high", "medium", "low"].map((p) => (
-                      <TouchableOpacity
-                        key={p}
-                        onPress={() => changeStagingPriority(idx, p as "high" | "medium" | "low")}
-                        style={{
-                          flex: 1,
-                          paddingVertical: 8,
-                          borderRadius: 8,
-                          backgroundColor:
-                            task.priority === p ? getPriorityColor(p) : COLORS.border,
-                          alignItems: "center",
-                        }}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 11,
-                            fontWeight: "700",
-                            color: task.priority === p ? COLORS.surface : COLORS.textSecondary,
-                          }}
-                        >
-                          {p === "high" ? "🔴" : p === "medium" ? "🟠" : "🟡"}
-                          {"\n"}
-                          {p.toUpperCase()}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
-
-            <View style={{ gap: 10, paddingBottom: 20 }}>
-              <TouchableOpacity
-                onPress={saveStagingTasks}
-                disabled={isLoading}
-                style={{
-                  backgroundColor: COLORS.success,
-                  paddingVertical: 14,
-                  borderRadius: 12,
-                  alignItems: "center",
-                  opacity: isLoading ? 0.6 : 1,
-                }}
-              >
-                <Text
-                  style={{
-                    color: COLORS.surface,
-                    fontWeight: "700",
-                    fontSize: 16,
-                  }}
-                >
-                  {isLoading ? "Saving..." : "✅ Save & Track"}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setShowPriorityModal(false)}
-                disabled={isLoading}
-                style={{
-                  borderWidth: 2,
-                  borderColor: COLORS.border,
-                  paddingVertical: 12,
-                  borderRadius: 12,
-                  alignItems: "center",
-                }}
-              >
-                <Text
-                  style={{
-                    color: COLORS.text,
-                    fontWeight: "600",
-                    fontSize: 16,
-                  }}
-                >
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
+
+const s = StyleSheet.create({
+  safe:        { flex: 1, backgroundColor: '#F0F4FF' },
+  scroll:      { flex: 1 },
+  content:     { padding: 16, paddingBottom: 32 },
+  header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, marginTop: 4 },
+  logo:        { fontSize: 28, fontWeight: '900', color: '#1A1A2E', letterSpacing: -0.5 },
+  logoSub:     { fontSize: 12, color: '#7A8BB5', fontWeight: '500', marginTop: 2 },
+  headerBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fff', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, shadowColor: '#0066FF', shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
+  dot:         { width: 8, height: 8, borderRadius: 4 },
+  dotActive:   { backgroundColor: '#2ECC71' },
+  dotIdle:     { backgroundColor: '#CBD5E1' },
+  headerBadgeText: { fontSize: 12, fontWeight: '700', color: '#334155' },
+  authBtn:     { backgroundColor: '#E0E7FF', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, marginLeft: 12 },
+  authBtnText: { color: '#0066FF', fontSize: 13, fontWeight: '700' },
+  warnCard:    { backgroundColor: '#FFF8E1', borderRadius: 10, padding: 10, marginBottom: 12, borderWidth: 1, borderColor: '#FFE082' },
+  warnText:    { fontSize: 12, color: '#795548', fontWeight: '500' },
+  locCard:     { backgroundColor: '#E8F5FF', borderRadius: 12, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: '#BAD3F5' },
+  locLabel:    { fontSize: 11, fontWeight: '700', color: '#0066FF', marginBottom: 4 },
+  locCoords:   { fontSize: 13, fontWeight: '600', color: '#1A1A2E', fontFamily: 'Courier New' },
+  locAccuracy: { fontSize: 11, color: '#666', marginTop: 3 },
+  statsGrid:   { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  statCard:    { flex: 1, backgroundColor: '#fff', borderRadius: 14, padding: 14, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+  statIcon:    { fontSize: 20, marginBottom: 4 },
+  statVal:     { fontSize: 22, fontWeight: '800', marginBottom: 2 },
+  statLabel:   { fontSize: 10, color: '#8896B0', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  resultCard:  { borderRadius: 12, padding: 12, marginBottom: 12, borderLeftWidth: 4 },
+  resultGreen: { backgroundColor: '#E8F5E9', borderLeftColor: '#2ECC71' },
+  resultRed:   { backgroundColor: '#FFEBEE', borderLeftColor: '#E74C3C' },
+  resultBlue:  { backgroundColor: '#E3F2FD', borderLeftColor: '#3498DB' },
+  resultText:  { fontSize: 13, fontWeight: '600', color: '#1A1A2E' },
+  trackRow:    { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  btn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 13, borderRadius: 12, flex: 1 },
+  btnGreen:    { backgroundColor: '#2ECC71' },
+  btnRed:      { backgroundColor: '#E74C3C' },
+  btnBlue:     { backgroundColor: '#0066FF' },
+  btnText:     { color: '#fff', fontWeight: '700', fontSize: 14 },
+  card:        { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 14, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
+  cardTitle:   { fontSize: 15, fontWeight: '800', color: '#1A1A2E', marginBottom: 12 },
+  inputRow:    { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  input:       { flex: 1, backgroundColor: '#F5F7FF', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: '#1A1A2E', borderWidth: 1.5, borderColor: '#E0E4EF' },
+  addBtn:      { width: 46, height: 46, backgroundColor: '#0066FF', borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  mlHint:      { backgroundColor: '#F0F6FF', borderRadius: 8, padding: 10, marginBottom: 10 },
+  mlHintText:  { fontSize: 12, color: '#0066FF' },
+  chipRow:     { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  chip:        { paddingHorizontal: 12, paddingVertical: 5, backgroundColor: '#F0F4FF', borderRadius: 20, borderWidth: 1, borderColor: '#D0DBFF' },
+  chipText:    { fontSize: 12, fontWeight: '600', color: '#5571AA' },
+  chipDivider: { width: 1, backgroundColor: '#E0E4EF', marginHorizontal: 4 },
+  taskRow:     { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F0F2F8' },
+  taskTriggered: { backgroundColor: '#F0FFF4', marginHorizontal: -8, paddingHorizontal: 8, borderRadius: 8 },
+  catDot:      { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
+  taskText:    { fontSize: 13, fontWeight: '600', color: '#1A1A2E' },
+  taskMeta:    { fontSize: 11, color: '#8896B0', marginTop: 2 },
+  empty:       { color: '#AAB', textAlign: 'center', paddingVertical: 20, fontSize: 13 },
+  viewAll:     { textAlign: 'center', color: '#0066FF', fontSize: 12, fontWeight: '600', marginTop: 10 },
+});

@@ -12,7 +12,18 @@ body {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    background: #f0f2f7;
+    /* Rich geo-themed background: deep navy → blue-teal gradient with map-dot pattern */
+    background:
+        radial-gradient(ellipse at 15% 85%, rgba(0, 184, 148, 0.12) 0%, transparent 50%),
+        radial-gradient(ellipse at 85% 15%, rgba(0, 102, 255, 0.14) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(108, 92, 231, 0.06) 0%, transparent 70%),
+        repeating-radial-gradient(
+            circle at 20px 20px,
+            rgba(0,102,255,0.035) 1px,
+            transparent 1px
+        ),
+        linear-gradient(160deg, #eef2ff 0%, #f0f4fc 40%, #e8f4f0 100%);
+    background-size: auto, auto, auto, 40px 40px, auto;
 }
 
 /* ── Header ──────────────────────────────────────────── */
@@ -134,17 +145,54 @@ body {
     max-width: 1400px;
     width: 100%;
     margin: 0 auto;
+    position: relative;
+}
+
+/* Floating globe watermark behind content */
+.app-main::before {
+    content: '';
+    position: fixed;
+    bottom: -80px;
+    right: -80px;
+    width: 480px;
+    height: 480px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Ccircle cx='100' cy='100' r='95' fill='none' stroke='%230066ff' stroke-width='1.5' stroke-dasharray='4 6' opacity='0.07'/%3E%3Ccircle cx='100' cy='100' r='65' fill='none' stroke='%230066ff' stroke-width='1' stroke-dasharray='3 5' opacity='0.05'/%3E%3Ccircle cx='100' cy='100' r='35' fill='none' stroke='%2300b894' stroke-width='1' stroke-dasharray='2 4' opacity='0.06'/%3E%3Cellipse cx='100' cy='100' rx='95' ry='40' fill='none' stroke='%230066ff' stroke-width='1' stroke-dasharray='4 6' opacity='0.06'/%3E%3Cellipse cx='100' cy='100' rx='95' ry='70' fill='none' stroke='%230066ff' stroke-width='0.8' opacity='0.04'/%3E%3Cline x1='5' y1='100' x2='195' y2='100' stroke='%230066ff' stroke-width='0.8' opacity='0.05'/%3E%3Cline x1='100' y1='5' x2='100' y2='195' stroke='%230066ff' stroke-width='0.8' opacity='0.05'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-size: contain;
+    pointer-events: none;
+    z-index: 0;
+    animation: globe-spin 60s linear infinite;
+}
+@keyframes globe-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+/* Top-left location pin watermark */
+.app-main::after {
+    content: '';
+    position: fixed;
+    top: 120px;
+    left: -40px;
+    width: 280px;
+    height: 280px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 120'%3E%3Cpath d='M50 0 C27.9 0 10 17.9 10 40 C10 65 50 110 50 110 C50 110 90 65 90 40 C90 17.9 72.1 0 50 0 Z' fill='%230066ff' opacity='0.04'/%3E%3Ccircle cx='50' cy='40' r='14' fill='%230066ff' opacity='0.05'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-size: contain;
+    pointer-events: none;
+    z-index: 0;
 }
 
 /* ── Footer ──────────────────────────────────────────── */
 .app-footer {
-    background: white;
-    border-top: 1px solid rgba(0,0,0,0.07);
+    background: linear-gradient(90deg, #0a1628 0%, #1a3a6b 100%);
+    border-top: none;
     padding: 14px 32px;
     text-align: center;
-    color: #999;
+    color: rgba(255,255,255,0.5);
     font-size: 12px;
     margin-top: auto;
+    letter-spacing: 0.3px;
 }
 
 /* ── Toast ───────────────────────────────────────────── */
