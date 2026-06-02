@@ -102,7 +102,7 @@ if __name__ == "__main__":
 
     # ── Per-class F1 ──────────────────────────────────────────
     print("\n📈 Classification Report:")
-    print(classification_report(y_test, y_pred, target_names=CATEGORIES, digits=3))
+    print(classification_report(y_test, y_pred, labels=CATEGORIES, target_names=CATEGORIES, digits=3))
 
     # ── Confusion Matrix ──────────────────────────────────────
     print_confusion_matrix(y_test, y_pred)

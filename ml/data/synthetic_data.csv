@@ -443,3 +443,69 @@ need dental floss,pharmacy,synthetic
 buy mouthwash,pharmacy,synthetic
 pick up a toothache gel,pharmacy,synthetic
 need protein powder,pharmacy,synthetic
+"need to get fresh milk, bread, and eggs from local store",grocery,synthetic_extra
+buy chicken breasts and frozen vegetables for dinner,grocery,synthetic_extra
+grab some cheese slice and butter packages,grocery,synthetic_extra
+pick up coffee beans and tea bags,grocery,synthetic_extra
+"need cooking oil, salt, and spices for the kitchen",grocery,synthetic_extra
+"buy snacks, potato chips, and soft drinks for the party",grocery,synthetic_extra
+"get fresh apples, bananas, and strawberries from fruit vendor",grocery,synthetic_extra
+"need to restock rice, flour, and lentils",grocery,synthetic_extra
+buy greek yogurt and honey,grocery,synthetic_extra
+pick up olive oil and vinegar from supermarket,grocery,synthetic_extra
+"get garlic, ginger, and onions for curry",grocery,synthetic_extra
+buy chocolate syrup and ice cream,grocery,synthetic_extra
+need tomato puree and pasta packets,grocery,synthetic_extra
+buy oatmeal and almond milk for breakfast,grocery,synthetic_extra
+pick up detergent bar and dishwashing liquid at grocery shop,grocery,synthetic_extra
+doodh aur bread khareedna hai,grocery,synthetic_extra
+vegetables leke aana hai market se,grocery,synthetic_extra
+buy painkiller tablets for back pain,pharmacy,synthetic_extra
+need cough syrup and throat lozenges for cold,pharmacy,synthetic_extra
+pick up asthma inhaler prescription from chemist,pharmacy,synthetic_extra
+buy allergy medicine and antihistamines,pharmacy,synthetic_extra
+get calcium and vitamin D supplements,pharmacy,synthetic_extra
+need eye drops for dry eyes,pharmacy,synthetic_extra
+"buy band-aids, antiseptic lotion, and cotton rolls",pharmacy,synthetic_extra
+get blood pressure medication refilled at pharmacy,pharmacy,synthetic_extra
+need insulin syringes and glucose strips,pharmacy,synthetic_extra
+buy thermometer and paracetamol for fever,pharmacy,synthetic_extra
+need skin ointment for rashes,pharmacy,synthetic_extra
+pick up prescription pills from the drug store,pharmacy,synthetic_extra
+buy dental floss and antibacterial mouthwash,pharmacy,synthetic_extra
+get baby multivitamins and colic drops,pharmacy,synthetic_extra
+need rehydration salts and probiotic capsules,pharmacy,synthetic_extra
+medicine leke aana chemist shop se,pharmacy,synthetic_extra
+fever ki goli chahiye,pharmacy,synthetic_extra
+buy winter jacket and woolen sweater,clothing,synthetic_extra
+need to get casual blue jeans and black t-shirts,clothing,synthetic_extra
+buy sports shoes and running sneakers,clothing,synthetic_extra
+get a formal suit and necktie for interview,clothing,synthetic_extra
+buy summer dress and sun hat for vacation,clothing,synthetic_extra
+need leather belt and sunglasses,clothing,synthetic_extra
+buy cotton socks and underwear pack,clothing,synthetic_extra
+get designer saree or lehenga for wedding function,clothing,synthetic_extra
+buy rain coat or umbrella for monsoon,clothing,synthetic_extra
+looking for a nice kurti and leggings at clothing store,clothing,synthetic_extra
+buy leather jacket and boots,clothing,synthetic_extra
+"need gym wear, shorts, and track pants",clothing,synthetic_extra
+get pajamas and nightwear set,clothing,synthetic_extra
+buy school uniform and shoes for kids,clothing,synthetic_extra
+kapde khareedne chalna hai market,clothing,synthetic_extra
+naya shirt aur jeans lena hai,clothing,synthetic_extra
+drop off courier package at post office,general,synthetic_extra
+meet friend at local coffee shop,general,synthetic_extra
+go to bank branch to deposit cash and update passbook,general,synthetic_extra
+get car washed and vacuumed,general,synthetic_extra
+renew driver's license at transport office,general,synthetic_extra
+haircut appointment at hair salon,general,synthetic_extra
+get laptop repaired at service center,general,synthetic_extra
+pay electricity and water bills,general,synthetic_extra
+meet family doctor for general checkup consultation,general,synthetic_extra
+attend evening programming seminar,general,synthetic_extra
+get printouts and xerox from stationery shop,general,synthetic_extra
+visit library to return borrowed books,general,synthetic_extra
+fill petrol or diesel at gas station,general,synthetic_extra
+drop key at neighbor's house,general,synthetic_extra
+errands poore karne hain aaj,general,synthetic_extra
+bank jana hai check book lene,general,synthetic_extra

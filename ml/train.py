@@ -91,7 +91,6 @@ def train(df: pd.DataFrame):
         max_iter=MODEL_CONFIG.max_iter,
         C=MODEL_CONFIG.C,             # Regularization: higher C = less regularization
         solver="lbfgs",
-        multi_class="multinomial",
         random_state=42,
     )
 
