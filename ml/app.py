@@ -14,6 +14,8 @@ from config import (
     VECTORIZER_PATH,
     PROTOTYPE_PATH,
     FEEDBACK_DATA_PATH,
+    API_HOST,
+    API_PORT,
 )
 from preprocessing import clean_text
 from similarity import predict_with_similarity
@@ -128,21 +130,17 @@ def feedback(request: FeedbackRequest):
         predicted = request.predicted or request.chosen_category or "unknown"
         corrected = request.corrected or request.chosen_category or "unknown"
         
-        # Create a dataframe with all available info
+        # Create a dataframe with all available info in a consistent order
         row = {
             "text": request.text,
             "predicted": predicted,
             "corrected": corrected,
+            "task_id": request.task_id or "",
+            "chosen_store": request.chosen_store or "",
+            "rating": request.rating if request.rating is not None else "",
         }
-        # Include extra mobile fields if present
-        if request.task_id:
-            row["task_id"] = request.task_id
-        if request.chosen_store:
-            row["chosen_store"] = request.chosen_store
-        if request.rating is not None:
-            row["rating"] = request.rating
         
-        df = pd.DataFrame([row])
+        df = pd.DataFrame([row], columns=["text", "predicted", "corrected", "task_id", "chosen_store", "rating"])
         
         # Append to CSV
         df.to_csv(FEEDBACK_DATA_PATH, mode='a', header=not file_exists, index=False)

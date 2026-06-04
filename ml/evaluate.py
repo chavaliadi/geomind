@@ -29,9 +29,13 @@ def load_eval_data() -> tuple[list, list]:
     df = pd.read_csv(SYNTHETIC_DATA_PATH)
 
     if __import__("os").path.exists(FEEDBACK_DATA_PATH):
-        feedback = pd.read_csv(FEEDBACK_DATA_PATH).dropna(subset=["text", "category"])
-        if len(feedback) > 0:
-            df = pd.concat([df, feedback], ignore_index=True)
+        feedback = pd.read_csv(FEEDBACK_DATA_PATH)
+        if "corrected" in feedback.columns:
+            feedback = feedback.rename(columns={"corrected": "category"})
+        if "category" in feedback.columns and "text" in feedback.columns:
+            feedback = feedback.dropna(subset=["text", "category"])
+            if len(feedback) > 0:
+                df = pd.concat([df, feedback], ignore_index=True)
 
     df = df[df["category"].isin(CATEGORIES)].copy()
     df["clean_text"] = df["text"].apply(clean_text)
