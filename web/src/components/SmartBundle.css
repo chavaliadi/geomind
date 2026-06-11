@@ -318,3 +318,57 @@
   color: #d97706;
   font-weight: 500;
 }
+
+/* ── Alternative Stores ── */
+.sb-store-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.sb-store-info--best {
+  background: #fff;
+  border: 1px solid #d0dbff;
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 0;
+  box-shadow: 0 2px 8px rgba(0, 102, 255, 0.04);
+}
+.sb-store-badge {
+  font-size: 10px;
+  background: #e8f5ff;
+  color: #0066FF;
+  padding: 2px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.sb-store-alternatives {
+  padding-left: 8px;
+  border-left: 2px solid #e0e8ff;
+  margin-left: 4px;
+}
+.sb-alt-header {
+  font-size: 11px;
+  color: #8896b0;
+  font-weight: 600;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.sb-store-info--alt {
+  margin-bottom: 6px;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+.sb-store-info--alt:hover {
+  opacity: 1;
+}
+.sb-store-info--alt .sb-store-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #3a4a6b;
+}
+.sb-store-info--alt .sb-store-meta {
+  font-size: 11px;
+}

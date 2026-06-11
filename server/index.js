@@ -60,7 +60,7 @@ function getFallbackCategory(text) {
   const t = text.toLowerCase();
   const keywordMap = {
     clothing: ["shirt", "clothes", "dress", "wear"],
-    grocery:  ["apple", "milk", "fruit", "vegetable", "grocery"],
+    grocery:  ["apple", "milk", "fruit", "vegetable", "grocery", "chips", "snack", "chocolate"],
     pharmacy: ["medicine", "tablet", "pharmacy"],
   };
   for (const [category, keywords] of Object.entries(keywordMap)) {

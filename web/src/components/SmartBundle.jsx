@@ -234,14 +234,29 @@ export default function SmartBundle({ tasks = [] }) {
                     </div>
 
                     {bundle.best_store ? (
-                      <div className="sb-store-info">
-                        <div className="sb-store-name">🏪 {bundle.best_store.name}</div>
-                        <div className="sb-store-meta">
-                          <span>📍 {fmt.dist(bundle.best_store.distance_m)}</span>
-                          {bundle.best_store.opening_hours && (
-                            <span className="sb-store-hours">🕐 {bundle.best_store.opening_hours}</span>
-                          )}
+                      <div className="sb-store-options">
+                        <div className="sb-store-info sb-store-info--best">
+                          <div className="sb-store-name">🥇 {bundle.best_store.name} <span className="sb-store-badge">Best Match</span></div>
+                          <div className="sb-store-meta">
+                            <span>📍 {fmt.dist(bundle.best_store.distance_m)}</span>
+                            {bundle.best_store.opening_hours && (
+                              <span className="sb-store-hours">🕐 {bundle.best_store.opening_hours}</span>
+                            )}
+                          </div>
                         </div>
+                        {bundle.all_stores && bundle.all_stores.length > 1 && (
+                          <div className="sb-store-alternatives">
+                            <div className="sb-alt-header">Alternative options:</div>
+                            {bundle.all_stores.slice(1).map((store, altIdx) => (
+                              <div key={altIdx} className="sb-store-info sb-store-info--alt">
+                                <div className="sb-store-name">🏪 {store.name}</div>
+                                <div className="sb-store-meta">
+                                  <span>📍 {fmt.dist(store.distance_m)}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="sb-no-store">⚠️ No {meta.label} store found nearby</div>
