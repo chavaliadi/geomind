@@ -74,8 +74,22 @@ const Dashboard = ({ tasks, stats, loading, onTasksUpdate, showToast }) => {
     const triggerScan = async (task) => {
         setScanningId(task.id);
         try {
-            // Use a demo coordinate (Bengaluru centre) — Phase 8B will use real location
-            const lat = 12.9716, lng = 77.5946;
+            // Attempt to use browser geolocation, fallback to Bengaluru centre if unavailable
+            let lat = 12.9716, lng = 77.5946;
+            try {
+                const pos = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(
+                        p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+                        err => reject(err),
+                        { timeout: 3000 }
+                    );
+                });
+                lat = pos.lat;
+                lng = pos.lng;
+            } catch (geoErr) {
+                console.log('Using fallback scan coordinates (Bengaluru Centre)', geoErr);
+            }
+
             const r = await axios.post(`${API_URL}/location`, { lat, lng });
             const match = r.data.batches?.find(b => b.category === task.category);
             setScanResult(prev => ({
