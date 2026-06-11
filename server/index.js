@@ -7,6 +7,10 @@ require("dotenv").config();
 const { protect } = require("./middleware/auth");
 const authRoutes  = require("./routes/auth");
 
+// ── Phase 1 Routes ─────────────────────────────────────────────────────────────
+const bundleRoutes = require("./routes/bundles");
+const routeRoutes  = require("./routes/route");
+
 const app = express();
 
 app.use(cors({
@@ -21,20 +25,25 @@ app.use(cors({
 }));
 app.use(express.json({ limit: "10kb" }));
 
-// ── Public auth routes (no protect needed) ───────────────────────────────────
-app.use("/auth", authRoutes);
-
 // ── DB ────────────────────────────────────────────────────────────────────────
 console.log("DATABASE_URL:", process.env.DATABASE_URL ? "Found" : "Missing");
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// Expose pool on app.locals so route modules can access it
+app.locals.pool = pool;
 
 pool.query("SELECT NOW()", (err, res) => {
   if (err) console.error("❌ DB Connection Failed:", err.message);
   else     console.log("✅ DB Connected:", res.rows[0].now);
 });
 
-// ── Health ────────────────────────────────────────────────────────────────────
+// ── Mount all routes ──────────────────────────────────────────────────────────
+app.use("/auth",               authRoutes);
+app.use("/api/smart-bundle",   protect, bundleRoutes);
+app.use("/api/optimize-route", protect, routeRoutes);
+
+// ── Health ──────────────────────────────────────────────────────────────────────────
 app.get("/health", async (req, res) => {
   console.log("Health endpoint hit");
   try {
@@ -89,6 +98,30 @@ async function categorizeTask(text, category_override) {
   } catch (err) {
     console.warn(`\n⚠️ ML failed, using fallback. Reason: ${err.message}`);
     return getFallbackCategory(text);
+  }
+}
+
+// ── Helper: call ML urgency scorer ─────────────────────────────────────────────────────
+async function scoreUrgency(text) {
+  try {
+    const controller = new AbortController();
+    const timeoutId  = setTimeout(() => controller.abort(), 2000);
+    const mlResponse = await fetch("http://localhost:5001/urgency", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ text }),
+      signal:  controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (!mlResponse.ok) throw new Error(`Urgency ML status ${mlResponse.status}`);
+    const data = await mlResponse.json();
+    return {
+      urgency_score:  data.urgency_score  ?? 0.5,
+      urgency_reason: data.urgency_reason ?? null,
+    };
+  } catch (err) {
+    console.warn(`⚠️ Urgency scoring failed: ${err.message}`);
+    return { urgency_score: 0.5, urgency_reason: null };
   }
 }
 
@@ -181,17 +214,26 @@ const taskCreateHandler = async (req, res) => {
   const validPriorities = ["high", "medium", "low"];
   const finalPriority   = validPriorities.includes(priority) ? priority : "medium";
   const finalRadius     = Number(radius_meters) > 0 ? Number(radius_meters) : 1000;
-  const category        = await categorizeTask(text, category_override);
+
+  // Run ML classification + urgency scoring in parallel
+  const [category, { urgency_score, urgency_reason }] = await Promise.all([
+    categorizeTask(text, category_override),
+    scoreUrgency(text),
+  ]);
+
+  console.log(`🔥 Urgency: "${text}" → ${urgency_score} (${urgency_reason || 'no signals'})`);
 
   try {
     const result = await pool.query(
-      `INSERT INTO smart_tasks (raw_text, category, priority, user_id, radius_meters)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO smart_tasks
+         (raw_text, category, priority, user_id, radius_meters, urgency_score, urgency_reason)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, raw_text as text, raw_text, category, priority,
-                 status, triggered_at, created_at, cooldown_minutes, radius_meters`,
-      [text, category, finalPriority, req.auth.userId, finalRadius]
+                 status, triggered_at, created_at, cooldown_minutes,
+                 radius_meters, urgency_score, urgency_reason`,
+      [text, category, finalPriority, req.auth.userId, finalRadius, urgency_score, urgency_reason]
     );
-    console.log(`✅ Task created: "${text}" (${finalPriority}, radius: ${finalRadius}m)`);
+    console.log(`✅ Task created: "${text}" (${finalPriority}, urgency: ${urgency_score}, radius: ${finalRadius}m)`);
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err);

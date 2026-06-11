@@ -2,7 +2,10 @@ import logging
 import joblib
 import pandas as pd
 import os
+import re
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -65,16 +68,69 @@ app.add_middleware(
 class PredictRequest(BaseModel):
     text: str
 
+class UrgencyRequest(BaseModel):
+    text: str
+    created_at: Optional[str] = None  # ISO timestamp — adds time-based urgency boost
+
 class FeedbackRequest(BaseModel):
     text: str
     # New mobile/web fields
-    task_id: str | None = None
-    chosen_category: str | None = None
-    chosen_store: str | None = None
-    rating: int | None = None
+    task_id: Optional[str] = None
+    chosen_category: Optional[str] = None
+    chosen_store: Optional[str] = None
+    rating: Optional[int] = None
     # Legacy fields (backwards compatible)
-    predicted: str | None = None
-    corrected: str | None = None
+    predicted: Optional[str] = None
+    corrected: Optional[str] = None
+
+# ─── Urgency Engine ───────────────────────────────────────────────────────────
+# Tiered keyword banks — higher tier = stronger urgency signal
+_URGENCY_TIERS = [
+    # Tier 3 — Critical (score contribution: 0.45)
+    (0.45, re.compile(
+        r'\b(?:emergency|911|critical|life.?threatening|asap|immediately|right.?now'
+        r'|expir(?:e|ing|ed)|prescription|overdose)\b', re.I
+    )),
+    # Tier 2 — High urgency (score contribution: 0.30)
+    (0.30, re.compile(
+        r'\b(?:urgent|urgently|deadline|tonight|today|running.?out|last.?one'
+        r'|medicine|medication|inhaler|insulin|tablets?|pills?|exam|test|due)\b', re.I
+    )),
+    # Tier 1 — Mild urgency (score contribution: 0.15)
+    (0.15, re.compile(
+        r"\b(?:soon|this.?week|before|remember|don't.?forget|important|need.?to"
+        r'|charger|battery|low|finish|complete)\b', re.I
+    )),
+]
+
+def compute_urgency(text: str, created_at_str: Optional[str] = None) -> dict:
+    """Compute a 0.0–1.0 urgency score with a human-readable reason."""
+    score = 0.0
+    reasons = []
+
+    for contribution, pattern in _URGENCY_TIERS:
+        matches = pattern.findall(text)
+        if matches:
+            score += contribution
+            reasons.append(matches[0].lower())
+
+    # Time decay boost: tasks older than 3 days get a small urgency nudge
+    if created_at_str:
+        try:
+            created = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+            age_days = (datetime.now(timezone.utc) - created).days
+            if age_days >= 7:
+                score += 0.20
+                reasons.append(f"{age_days}d old")
+            elif age_days >= 3:
+                score += 0.10
+                reasons.append(f"{age_days}d old")
+        except Exception:
+            pass
+
+    score = round(min(score, 1.0), 3)
+    reason = ", ".join(reasons) if reasons else "no urgency signals detected"
+    return {"urgency_score": score, "urgency_reason": reason}
 
 # ─── Endpoints ───────────────────────────────────────────────────────────────
 @app.get("/health")
@@ -83,6 +139,15 @@ def health_check():
         "status": "ok",
         "model_loaded": MODELS_LOADED
     }
+
+@app.post("/urgency")
+def urgency(request: UrgencyRequest):
+    """Score how urgent a task is. Returns urgency_score (0.0–1.0) + urgency_reason."""
+    if not request.text or not request.text.strip():
+        return {"urgency_score": 0.0, "urgency_reason": "empty input"}
+    result = compute_urgency(request.text, request.created_at)
+    logger.info(f"Urgency: '{request.text}' → {result['urgency_score']} ({result['urgency_reason']})")
+    return result
 
 @app.post("/predict")
 def predict(request: PredictRequest):

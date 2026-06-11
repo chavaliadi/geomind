@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { Plus, Zap } from 'lucide-react';
+import SmartBundle from './SmartBundle';
 import './Dashboard.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
@@ -90,6 +91,9 @@ const Dashboard = ({ tasks, stats, loading, onTasksUpdate, showToast }) => {
 
     return (
         <div className="dashboard">
+
+            {/* ── Smart Bundle Panel (Phase 1) ── */}
+            <SmartBundle tasks={tasks} />
 
             {/* ── Quick Add Panel ── */}
             <div className="quick-add-panel">
