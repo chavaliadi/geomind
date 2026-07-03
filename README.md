@@ -1,304 +1,350 @@
-# 🗺️ GeoMind - Smart Location-Based Reminder System
+# 🗺️ GeoMind — Context-Aware Geospatial Task Orchestration Platform
 
-## 📍 The Idea
+GeoMind is a proactive, context-aware geospatial task orchestration platform that dynamically tracks user context and intent to optimize errand running. 
 
-GeoMind is an intelligent location-based reminder system that automatically notifies users when they arrive near places where they need to complete tasks. Instead of remembering to buy groceries every time you visit a store, GeoMind intelligently batches reminders by category and triggers notifications based on your real-time GPS location with smart priority ordering.
-
-**Core Concept:**
-- Users create tasks with priority levels (HIGH, MEDIUM, LOW)
-- Tasks are auto-categorized (Grocery, Pharmacy, Clothing, General)
-- When user arrives within ~50-100m of relevant locations, they receive ONE notification per category
-- Notifications are batched smartly (up to 5 tasks per batch for readability)
-- Per-category cooldown (30 mins) prevents notification spam
-- Priority-ordered display ensures important tasks appear first
+Instead of requiring users to manage rigid, location-static to-do lists, GeoMind allows them to record raw thoughts (e.g., *"pick up asthma inhaler before dinner"*). The platform parses this input to infer task categories and urgency levels, matches them against real-world points of interest, batches tasks by location category, and computes optimal travel paths.
 
 ---
 
-## ✅ What We've Done Till Now
+## 🏗️ System Architecture
 
-### Phase 1: Core Backend Infrastructure (COMPLETED)
-- ✅ Set up Node.js + Express server on port 3000
-- ✅ PostgreSQL database with PostGIS for geospatial queries
-- ✅ `smart_tasks` table with priority column and status tracking
-- ✅ `places` table with lat/lng coordinates for categories
+```mermaid
+graph TD
+    %% Clients
+    subgraph Clients ["Client Applications"]
+        Web["React Web Dashboard<br/>(Clerk Auth / Leaflet maps)"]
+        Mobile["Expo Mobile Client<br/>(Custom JWT & Guest Auth / Leaflet-in-WebView)"]
+    end
 
-### Phase 2: Geo-Matching Engine (COMPLETED)
-- ✅ `POST /location` endpoint that analyzes user location against stored places
-- ✅ Proximity detection using ST_DWithin (PostGIS) within 1km radius
-- ✅ Per-task cooldown system to prevent repeated triggers
-- ✅ Database schema migration script for quick setup
+    %% Gateway / API
+    subgraph Backend ["Express API Server Gateway (Port 3000)"]
+        AuthMid["Dual-Auth Middleware<br/>(Clerk Verification / JWT / Guest ID)"]
+        TaskEnd["Task Management Router"]
+        BundleRouter["Smart Errand Bundler"]
+        GeoTrigger["PostGIS Proximity Engine<br/>(/location)"]
+    end
 
-### Phase 3: Priority System + Smart Batching + Cooldown (COMPLETED)
-- ✅ **Phase 3A**: Backend priority system 
-  - Tasks stored with priority (high/medium/low)
-  - Validated in POST /tasks endpoint
-  
-- ✅ **Phase 3B**: Smart notification batching
-  - 1 notification per category with up to 5 tasks per batch
-  - Tasks sorted within batch by priority (HIGH → MEDIUM → LOW)
-  - Prevents notification overload
-  
-- ✅ **Phase 3C**: Per-category cooldown
-  - 30-minute cooldown per category per trigger
-  - Prevents same category from triggering multiple times in short period
-  - Individual per-task cooldown also respected
+    %% Databases
+    subgraph Storage ["Persistent Storage Layer"]
+        DB[(PostgreSQL + PostGIS)]
+    end
 
-- ✅ **Real-world testing**: Verified with actual device GPS at (25.432247°N, 81.770706°E)
-  - Successfully triggered batches for multiple categories (clothing + grocery)
-  - Notifications displayed correctly with category emojis
+    %% ML Microservice
+    subgraph MLService ["FastAPI Machine Learning Service (Port 5001)"]
+        MLApp["FastAPI Engine"]
+        Vectorizer["TF-IDF Vectorizer"]
+        Classifier["Logistic Regression Model"]
+        Similarity["Cosine Similarity Fallback"]
+        Urgency["Urgency Scorer"]
+        FeedbackData[(Feedback Dataset)]
+    end
 
-### Phase 4: Mobile App (Expo React Native) (COMPLETED)
-- ✅ Created `/mobile/app/index.tsx`
-- ✅ Location auto-tracking (2-minute interval polling)
-- ✅ Task staging system (add tasks one-by-one before saving)
-- ✅ Priority modal for task creation (buttons: 🔴HIGH, 🟠MEDIUM, 🟡LOW)
-- ✅ Auto-categorization (grocery/pharmacy/clothing/general)
-- ✅ Notification system with permission handling
-- ✅ Offline support with expo-notifications
-- ✅ Beautiful gradient UI with category emojis
+    %% External Data
+    subgraph GeospatialProviders ["External Geospatial APIs"]
+        OSRM["Open Source Routing Machine (OSRM)<br/>(Trip Optimization TSP /trip)"]
+        Overpass["OSM Overpass API<br/>(Live Store Fetching)"]
+    end
 
-### Phase 5: Web Dashboard (COMPLETED)
-- ✅ Created React web app scaffold
-- ✅ 4-tab navigation: Dashboard | Manage Tasks | Analytics | Location Simulator
-- ✅ **Dashboard**: Stats cards (total/pending/completed/completion rate), task list, category distribution
-- ✅ **TaskManager**: Create/delete tasks with priority and category override
-- ✅ **Analytics**: Timeline charts, trigger rate by priority, category distribution
-- ✅ **LocationSimulator**: Manual lat/lng input to test geo-matching system
-- ✅ Responsive CSS styling with color-coded categories
-- ✅ **Dependencies**: All packages installed and functioning locally
+    %% Relations
+    Web & Mobile -->|HTTPS Requests| AuthMid
+    AuthMid --> TaskEnd & BundleRouter & GeoTrigger
+    TaskEnd & BundleRouter & GeoTrigger -->|pg Connection Pool| DB
+    TaskEnd -->|Parallel Predict / Urgency POST| MLApp
+    MLApp --> Vectorizer & Classifier & Similarity & Urgency
+    BundleRouter -->|OSRM TSP Route| OSRM
+    BundleRouter -->|Live Store Extraction| Overpass
+    Web & Mobile -->|Correction Feedback| MLApp
+    MLApp -->|Append Correction| FeedbackData
+```
 
 ---
 
-## 🚀 What We Will Do in the Future
+## 🔄 Core Errand Lifecycle & Routing Workflow
 
-### Phase 6: Web App Completion & Deployment (IN PROGRESS)
-- [x] Complete npm install for all React dependencies
-- [x] Add React Router for better navigation (currently using tab state)
-- [x] Rename all .js files to .jsx (React convention)
-- [x] Test web app with running backend
-- [ ] Deploy to Vercel or Netlify
-
-### Phase 7: ML/NLP Integration (COMPLETED)
-- [x] Create `ml/` folder with Python environment
-- [x] Build ML dataset (611 labeled examples with Hinglish, ambiguous, and mixed categories)
-- [x] Train TF-IDF + Logistic Regression classifier with Cosine Similarity Fallback
-  - Measured performance: **90.2% accuracy**, **0.906 Macro F1-score** on stratified test split
-  - Preprocessing: offline-safe, tokenized lemmatizer pipeline
-- [x] Create FastAPI microservice on port 5001
-  - Endpoint: `POST /predict` (accepts task text, returns category)
-  - Endpoint: `POST /urgency` (scores urgency from 0.0 to 1.0)
-  - Endpoint: `POST /feedback` (captures manual UI corrections)
-- [x] Integrate ML with backend:
-  - Modify `POST /tasks` to call ML service with Circuit Breaker pattern
-  - Fallback strictly to keywords if ML drops or times out
-- [x] Frontend improvements:
-  - Show ML `✨ Suggested category` badges in real-time on Dashboard
-  - Feed user-corrected task telemetry safely back to ML feedback dataset for periodic retraining
-
-### Phase 8: Advanced Features (IN PROGRESS)
-- [ ] Hierarchical categories (grocery → fruits, dairy, beverage)
-- [x] User authentication with JWT (Clerk for Web, Custom JWT for Mobile implemented)
-- [ ] Multi-user support with database isolation
-- [ ] Notification history and audit logs
-- [x] Custom location radius per task
-- [ ] Recurring reminders (weekly, monthly)
-- [x] Integration with Google Maps/Apple Maps (Implemented via Leaflet & react-native-webview)
-
-### Phase 9: Testing & Performance
-- [x] Integrate Open Source Routing Machine (OSRM) and Overpass OSM APIs for cost-free, high-performance geospatial routing and ETA calculations.
-- [ ] Unit tests for backend endpoints
-- [ ] E2E tests for mobile app
-- [ ] Load testing for notification system
-- [ ] Optimization for large task datasets (1000+ tasks)
-
-### Phase 10: Production Deployment
-- [ ] Docker containerization for backend
-- [ ] Heroku/Railway deployment
-- [ ] Mobile app distribution (TestFlight, Play Store)
-- [ ] CDN for web app assets
+```mermaid
+flowchart TD
+    %% Task Creation
+    Input[User enters: 'pick up asthma inhaler ASAP'] --> MLCall[Call FastAPI ML Service]
+    MLCall --> NLP{Confidence >= 0.60?}
+    
+    NLP -->|Yes| LogReg[Logistic Regression predicts 'pharmacy']
+    NLP -->|No| Cosine[Cosine Similarity prototype check]
+    Cosine --> Category[Assigned: Pharmacy]
+    LogReg --> Category
+    
+    Category --> Urgency[Scored urgency: 0.75 / High]
+    Urgency --> SaveTask[Store task in Postgres as pending]
+    
+    %% Location Check
+    SaveTask --> GPS[Client sends lat/lng GPS check]
+    GPS --> GeoCheck[PostGIS ST_DWithin radius check]
+    
+    GeoCheck --> Match{Proximity Matched?}
+    Match -->|Yes| Cooldown{Category Cooldown < 30 min?}
+    Match -->|No| Sleep[Sleep / Wait next interval]
+    
+    Cooldown -->|No| Batch[Batch up to 5 tasks per category]
+    Cooldown -->|Yes| Sleep
+    
+    Batch --> OverpassFetch[Fetch live POIs from Overpass OSM]
+    OverpassFetch --> OverpassResult{Stores found?}
+    
+    OverpassResult -->|Yes| Rank[Rank stores: Preference score + Distance]
+    OverpassResult -->|No| PostGISFall[Fallback: Retrieve local database PostGIS places]
+    PostGISFall --> Rank
+    
+    Rank --> OSRMRoute[Optimize visit order using OSRM /trip]
+    OSRMRoute --> RouteResult{OSRM healthy?}
+    
+    RouteResult -->|Yes| Return[Send optimized path + Explainability payload]
+    RouteResult -->|No| FallbackRoute[Fallback: Return straight-line Haversine route]
+    FallbackRoute --> Return
+```
 
 ---
 
-## 🌟 Future Upgrades & Improvements (To Make It Even Better)
+## 🛠️ Detailed Component Deep Dive
 
-Once the core phases are completely deployed, the following architectural upgrades will take GeoMind to the next level:
+### 1. Dual-Authentication Pipeline
+The Express gateway intercepts traffic using a unified custom middleware. This pipeline dynamically detects the authentication source:
+1. **Web Client:** Resolves identity by validating the session token issued by **Clerk** (cookie-based/JWT validation).
+2. **Mobile Client (Registered):** Validates a standard **HMAC-SHA256 JWT** containing `{ userId, source: "mobile" }` under the `Authorization: Bearer <token>` header.
+3. **Mobile Client (Guest Mode):** Detects `X-Guest-ID` (matching `guest_[A-Za-z0-9_-]{8,80}`) and routes tasks to sandbox records, allowing zero-friction onboarding.
 
-1. **True Mobile Background Processing (Expo Dev Build)**
-   - Transitioning from Expo Go to an Expo Development Build to unlock background GPS polling via `expo-task-manager`. This allows the app to trigger notifications even when swiped away or the phone is locked.
-2. **Real-Time Push Sockets (Socket.io)**
-   - Instead of polling the server or relying solely on manual refresh, integrating WebSockets would allow the dashboard and mobile app to instantly flash celebratory popups the exact microsecond a task is marked complete.
-3. **Smart Polling Acceleration**
-   - Implement dynamic GPS polling rates: check every 10 minutes while driving fast, but increase checking speed to every 1 minute when walking near known task hot-zones to save battery life.
-4. **Machine Learning Retraining Pipeline**
-   - Incorporate the database feedback tables (`user_habits` & `trigger_events`) into a scheduled offline job to periodically retrain the TF-IDF vectorizer and Logistic Regression models.
+### 2. PostGIS Geospatial Engine (`/location`)
+Proximity matches avoid CPU-heavy JS calculations by delegating geospatial operations directly to PostGIS:
+* Spatial proximity is verified via coordinates matching:
+  ```sql
+  ST_DWithin(geom, ST_GeogFromText('POINT(lng lat)'), task.radius_meters)
+  ```
+* Distance queries employ spatial indices (`idx_places_geom` USING GIST) to fetch nearby stores matching the category and user ownership (`user_id = $userId OR user_id IS NULL`).
+* Individual per-task cooldowns (`cooldown_minutes`) and a 30-minute per-category cooldown prevent notification spam.
 
----
+### 3. Smart Outing Errand Router & OSRM TSP Solver
+* **Aggregation:** Groups pending tasks into categorical errands.
+* **Store Harvesting:** Queries Overpass OSM endpoints in parallel. If OSM is offline, it falls back to querying the local PostGIS `places` database.
+* **Lightweight Preference Learning:** Completing tasks logs store names and user ratings to `user_habits`. The routing engine scores stores dynamically based on frequency and ratings:
+  $$\text{Score} = \min(1.0, \text{visits} \times 0.15 + \max(0, \text{rating} - 3) \times 0.2)$$
+  Preferred stores bubble up to the top of the bundle routing list.
+* **Route Optimization (OSRM):** Prepend the user's GPS coordinates to the coordinates of the chosen stores and posts them to OSRM `/trip` (Traveling Salesperson Problem solver) to return a road-optimized travel route (GeoJSON geometry and leg-by-leg durations). OSRM failures fall back to straight-line Haversine routing.
 
-## 🛠️ Tech Stack - What We're Using
-
-### Backend
-- **Runtime**: Node.js v24.6.0
-- **Framework**: Express 5.2.1
-- **Database**: PostgreSQL + PostGIS (geospatial queries)
-- **ORM**: pg (native postgres client)
-- **Environment**: dotenv 17.2.3
-- **CORS**: cors 2.8.6
-- **Dev Tools**: nodemon 3.1.11
-
-### Mobile (React Native)
-- **Framework**: Expo (managed React Native)
-- **Language**: TypeScript
-- **Location**: expo-location (GPS tracking)
-- **Notifications**: expo-notifications (push notifications)
-- **UI**: React Native built-ins (SafeAreaView, FlatList, etc.)
-
-### Web (React)
-- **Framework**: React 18.2.0
-- **DOM**: react-dom 18.2.0
-- **Build Tool**: react-scripts 5.0.1 (Create React App)
-- **Routing**: React Router
-- **HTTP Client**: axios 1.6.0
-- **Charts**: Recharts 2.10.0
-- **Icons**: Lucide React 0.294.0
-- **Utilities**: date-fns 2.30.0
-- **Styling**: Custom CSS with CSS Grid/Flexbox (no Tailwind dependency in the current repo)
-
-### DevOps & Tools
-- **Version Control**: Git
-- **Package Manager**: npm
-- **Editor**: VS Code
+### 4. NLP Task Categorizer & Urgency Engine
+* **Preprocessing:** Preprocessing is entirely offline-safe (does not trigger runtime corpus downloads). It normalizes inputs, filters stop words (preserving negations like *"no"*, *"not"*), and lemmatizes tokens.
+* **Intent Classification:** Employs a TF-IDF vectorizer to extract unigrams and bigrams, coupled with L2-regularized Logistic Regression.
+* **Cosine Similarity Fallback:** If prediction confidence falls below `0.60`, a cosine similarity fallback compares the task vector against pre-built category prototypes (centroid vectors of clean training data) to assign a classification label.
+* **Urgency Scorer:** Computes an urgency coefficient (0.0 to 1.0) using a tiered keyword mapping (Critical = `0.45`, High = `0.30`, Mild = `0.15`) plus time-decay nudges (tasks older than 3 days receive a small urgency boost).
 
 ---
 
-## 📦 Tech Stack - What We Will Add
+## 📈 ML Service Performance & Hardened Benchmarks
 
-### AI/ML/NLP
-- **Language**: Python 3.9+
-- **ML Framework**: scikit-learn (TF-IDF, Logistic Regression)
-- **APIs**: FastAPI (lightweight Python web framework)
-- **Server**: Uvicorn (ASGI server for FastAPI)
-- **Serialization**: joblib (save/load ML models)
-- **Data Processing**: pandas, numpy
+We enriched the training dataset with false-positive general sentences (e.g. *"go outside"*, *"handle work"*) and mixed-category phrases to optimize classification performance:
+* **Total Samples:** `611 rows`
+* **Test Split:** 123 samples (stratified 80/20 train/test split)
+* **Accuracy:** **90.24%**
+* **Macro F1-Score:** **90.59%**
+* **Class Precision & Recall:**
+  - **Grocery:** Precision `82.9%` | Recall `94.4%` | F1 `88.3%`
+  - **Pharmacy:** Precision `86.1%` | Recall `93.9%` | F1 `89.9%`
+  - **Clothing:** Precision `100.0%` | Recall `88.0%` | F1 `93.6%`
+  - **General:** Precision `100.0%` | Recall `82.8%` | F1 `90.6%`
 
-### Frontend Enhancements
-- **Routing**: react-router-dom 6.20.0 ✅ (already in package.json)
-- **State Management**: (Optional) Redux or Recoil if needed
-- **Form Validation**: (Optional) react-hook-form
-- **Testing**: Jest, React Testing Library
-
-### Backend Improvements
-- **Real-time**: Socket.io or WebSockets for live notifications
-- **Queue**: Bull or RabbitMQ for background jobs
-- **Caching**: Redis for cooldown tracking
-- **Logging**: Winston or Pino for structured logging
-- **Validation**: Joi or Zod for request validation
-
-### Deployment
-- **Containerization**: Docker
-- **Orchestration**: Docker Compose (local), Kubernetes (cloud)
-- **Cloud Platforms**: Vercel (web), AWS/Railway (backend), Firebase (mobile)
-- **Monitoring**: Sentry for error tracking
-
-### Database
-- **Backups**: Automated PostgreSQL backups
-- **Migration Tool**: Knex.js or Alembic for schema versioning
+Detailed evaluation logs and matrix reports are saved to [ml/evaluation_report.md](file:///Users/srinivasch/Documents/Projects/Geomind/ml/evaluation_report.md).
 
 ---
 
-## 📊 Project Status Dashboard
+## 📥 Getting Started
 
-| Phase | Component | Status | Progress |
-|-------|-----------|--------|----------|
-| 1 | Backend Infrastructure | ✅ Complete | 100% |
-| 2 | Geo-Matching Engine | ✅ Complete | 100% |
-| 3 | Priority + Batching + Cooldown | ✅ Complete | 100% |
-| 4 | Mobile App (Expo) | ✅ Complete | 100% |
-| 5 | Web Dashboard | ✅ Complete | 100% |
-| 6 | Web App Deployment | 🔄 In Progress | 80% |
-| 7 | ML/NLP Integration | ✅ Complete | 100% |
-| 8 | Advanced Features | 🔄 In Progress | 40% |
-| 9 | Testing & Performance | 🚀 Planned | 0% |
-| 10 | Production Deployment | 🚀 Planned | 0% |
+### Prerequisites
+* **Node.js** (v18+)
+* **Python** (3.9+)
+* **PostgreSQL** with the **PostGIS** extension installed
 
-**Overall Completion**: ~85% (Phases 1-5 & 7 Done. Phase 6 and 8 in progress)
+### 1. Database Setup
+Create your database and run the migrations/seed scripts:
+```bash
+createdb geomind
+psql -d geomind -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+psql -d geomind -f server/migrations/001_phase1_smart_errand.sql
+psql -d geomind -f server/seed.sql
+```
+
+### 2. Express Server Setup
+Navigate to the server directory, create your environment configuration, and boot the server:
+```bash
+cd server
+npm install
+cp .env.example .env # Set your DATABASE_URL, JWT_SECRET, and CLERK_API_KEY
+npm start
+```
+
+### 3. FastAPI ML Setup
+Initialize the Python environment, install dependencies, train the classifier, and run Uvicorn:
+```bash
+cd ml
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python3 train.py
+python3 evaluate.py # Generates evaluation_report.md
+python3 app.py
+```
+
+### 4. React Web Dashboard Setup
+Start the dashboard frontend:
+```bash
+cd web
+npm install
+npm start
+```
+
+### 5. Expo Mobile Client Setup
+Initialize and run the Expo client:
+```bash
+cd mobile
+npm install
+npx expo start
+```
 
 ---
 
-## 🛡️ Hardening Notes
+## 📡 API Contract Specification
 
-- Set `JWT_SECRET` in every non-local environment; the server will not issue or accept mobile JWTs without it.
-- Set `ML_SERVICE_URL` when the FastAPI service is deployed somewhere other than `http://localhost:5001`.
-- Set `CORS_ORIGINS` as a comma-separated list for deployed web/mobile clients.
-- Smart bundling uses Overpass first, then falls back to local PostGIS `places`; OSRM failures return a straight-line route fallback rather than breaking the request.
+### `GET /api/smart-bundle`
+* **Query Params:** `lat` (float), `lng` (float), `radius` (integer, default 2000)
+* **Response (Annotated JSON):**
+  ```json
+  {
+    "bundles": [
+      {
+        "category": "grocery",
+        "best_store": {
+          "id": "1",
+          "name": "D-Mart Civil Lines",
+          "lat": 25.4540,
+          "lng": 81.8340,
+          "distance_m": 180,
+          "preference_score": 0.95,
+          "source": "local_postgis"
+        },
+        "tasks": [
+          {
+            "id": 12,
+            "text": "buy organic milk",
+            "priority": "high",
+            "urgency_score": "0.78",
+            "urgency_reason": "urgently, running out"
+          }
+        ],
+        "task_count": 1,
+        "avg_urgency": 0.78,
+        "store_found": true,
+        "explainability": [
+          "D-Mart Civil Lines is close (180m away)",
+          "Priority level: High",
+          "Urgency: High (78%)",
+          "Frequently visited store from completion history"
+        ]
+      }
+    ],
+    "route": {
+      "ordered_stops": [
+        { "name": "D-Mart Civil Lines", "lat": 25.4540, "lng": 81.8340 }
+      ],
+      "geometry": [
+        [25.4322, 81.7707],
+        [25.4540, 81.8340]
+      ],
+      "total_distance_m": 180,
+      "total_time_min": 2
+    }
+  }
+  ```
 
-## 🎯 Next Immediate Steps
-
-1. **Production Deployment (Phase 6 & 10)**
-   - Move off localhost and deploy the Web Frontend to Vercel.
-   - Deploy the Node.js API and Python Machine Learning FastAPI server to Render or Railway.
-   
-2. **Mobile Background GPS (Phase 10)**
-   - Create an EAS Dev Build to enable `expo-task-manager` so the app tracks location while in the background.
-   
-3. **Database Cleanup & Optimization**
-   - Lock in database isolations for multi-user capabilities now that Clerk and JWT authentication are wired up.
+### `GET /health`
+* **Response (Diagnostics):**
+  ```json
+  {
+    "status": "healthy",
+    "timestamp": "2026-07-03T17:46:40.000Z",
+    "services": {
+      "database": "healthy",
+      "ml_service": "healthy",
+      "osrm_router": "configured (default)",
+      "overpass_osm": "configured (default failover pool)"
+    }
+  }
+  ```
 
 ---
 
-## 📝 Database Schema Summary
+## 📝 Database Schema Detail
 
 ```sql
-CREATE TABLE smart_tasks (
-  id SERIAL PRIMARY KEY,
-  user_id VARCHAR(255),
-  raw_text TEXT NOT NULL,
-  category VARCHAR(50),
-  priority VARCHAR(10) DEFAULT 'medium',
-  status VARCHAR(20) DEFAULT 'pending',
-  triggered_at TIMESTAMP,
-  created_at TIMESTAMP DEFAULT NOW(),
+-- Core Tasks table
+CREATE TABLE IF NOT EXISTS smart_tasks (
+  id               SERIAL PRIMARY KEY,
+  user_id          TEXT NOT NULL,
+  raw_text         TEXT NOT NULL,
+  category         VARCHAR(50),
+  priority         VARCHAR(10) DEFAULT 'medium',
+  status           VARCHAR(20) DEFAULT 'pending',
+  radius_meters    INT DEFAULT 1000,
+  urgency_score    FLOAT DEFAULT 0.5,
+  urgency_reason   TEXT DEFAULT NULL,
+  triggered_at     TIMESTAMP,
+  created_at       TIMESTAMP DEFAULT NOW(),
   cooldown_minutes INT DEFAULT 30
 );
 
-CREATE TABLE places (
-  id SERIAL PRIMARY KEY,
-  name TEXT,
-  category VARCHAR(50),
-  geom geometry(Point, 4326)
+-- Stored Places
+CREATE TABLE IF NOT EXISTS places (
+  id          SERIAL PRIMARY KEY,
+  user_id     TEXT DEFAULT NULL,
+  name        TEXT,
+  category    VARCHAR(50),
+  price_level INT DEFAULT NULL,
+  rating      FLOAT DEFAULT NULL,
+  geom        geometry(Point, 4326)
 );
 
-CREATE TABLE ml_feedback (
-  id SERIAL PRIMARY KEY,
-  task_id INTEGER,
-  task_text TEXT,
-  predicted_category VARCHAR(50),
-  corrected_category VARCHAR(50),
-  user_rating INTEGER,
-  created_at TIMESTAMP DEFAULT NOW()
+-- User habits/history tracking
+CREATE TABLE IF NOT EXISTS user_habits (
+  id           SERIAL PRIMARY KEY,
+  user_id      TEXT NOT NULL,
+  task_id      INT,
+  category     VARCHAR(50),
+  item_text    TEXT,
+  store_name   TEXT,
+  rating       INT,
+  completed_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE mobile_users (
-  id SERIAL PRIMARY KEY,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  created_at TIMESTAMP DEFAULT NOW()
+-- Trigger Audit log
+CREATE TABLE IF NOT EXISTS trigger_events (
+  id            SERIAL PRIMARY KEY,
+  user_id       TEXT NOT NULL,
+  task_id       INT REFERENCES smart_tasks(id) ON DELETE CASCADE,
+  category      VARCHAR(50),
+  place_name    TEXT,
+  distance_m    INT,
+  radius_meters INT,
+  priority      VARCHAR(10),
+  urgency_score FLOAT,
+  reason        JSONB DEFAULT '[]'::jsonb,
+  triggered_at  TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
 ---
 
-## 🔗 Repository Links
+## 💬 Defensive Portfolio Positioning (Interview Q&A)
 
-- **GitHub**: https://github.com/chavaliadi/geomind
-- **Folder Structure**:
-  ```
-  Geomind/
-  ├── mobile/          (React Native + Expo)
-  ├── web/             (React 18)
-  ├── server/          (Node.js + Express)
-  └── ml/              (Python + FastAPI)
-  ```
+#### Q: Why not use a large language model (LLM) or Vector Database for task categorization?
+> **Answer:** Deploying a large language model introduces network latency (often 1–3 seconds per query), token costs, and potential hallucinations for what is structurally a simple classification task. By building a local, decoupled TF-IDF + Logistic Regression pipeline, we achieve sub-millisecond inference times directly on cheap CPU nodes. If classification confidence falls below 60%, the cosine similarity fallback guarantees a valid match, making the system resilient and cost-effective.
 
----
+#### Q: How does location tracking function on the mobile client without native GPS code?
+> **Answer:** To prevent native plugin conflicts inside standard Expo Go, we wrote a foreground interval polling framework checking position every 2 minutes when tracking is active. This serves as a functional prototype. In a production roadmap, the app would transition to an Expo Dev Build utilizing `expo-task-manager` and `expo-location` to register true OS-level background geofences (`ST_DWithin` triggers) to run location checks even when the application is locked or swiped away.
 
-**Created**: Feb 2026 | **Status**: Active Development | **License**: MIT
+#### Q: Why use OSRM instead of simple straight-line distance (Haversine)?
+> **Answer:** Simple straight-line calculation ignores physical road networks, traffic directions, and obstacles. This can result in inaccurate ETA calculations and inefficient routes. OSRM uses OpenStreetMap road graphs to solve the Traveling Salesperson Problem (TSP) via contraction hierarchies. We also designed a Haversine fallback to ensure the application remains functional if the external OSRM service experiences downtime.
