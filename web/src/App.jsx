@@ -65,7 +65,7 @@ const App = () => {
   }, [isSignedIn]);
 
   const updateStats = (taskList) => {
-    const completed = taskList.filter((t) => t.status === 'triggered').length;
+    const completed = taskList.filter((t) => t.status === 'completed').length;
     const pending = taskList.filter((t) => t.status === 'pending').length;
     setStats({
       totalTasks: taskList.length,

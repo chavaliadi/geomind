@@ -78,26 +78,29 @@ GeoMind is an intelligent location-based reminder system that automatically noti
 - [x] Test web app with running backend
 - [ ] Deploy to Vercel or Netlify
 
-### Phase 7: AI/ML/NLP Integration (COMPLETED)
+### Phase 7: ML/NLP Integration (COMPLETED)
 - [x] Create `ml/` folder with Python environment
-- [x] Build ML dataset (100-200 labeled examples)
+- [x] Build ML dataset (611 labeled examples with Hinglish, ambiguous, and mixed categories)
 - [x] Train TF-IDF + Logistic Regression classifier with Cosine Similarity Fallback
+  - Measured performance: **90.2% accuracy**, **0.906 Macro F1-score** on stratified test split
+  - Preprocessing: offline-safe, tokenized lemmatizer pipeline
 - [x] Create FastAPI microservice on port 5001
   - Endpoint: `POST /predict` (accepts task text, returns category)
+  - Endpoint: `POST /urgency` (scores urgency from 0.0 to 1.0)
   - Endpoint: `POST /feedback` (captures manual UI corrections)
 - [x] Integrate ML with backend:
   - Modify `POST /tasks` to call ML service with Circuit Breaker pattern
   - Fallback strictly to keywords if ML drops or times out
 - [x] Frontend improvements:
   - Show ML `✨ Suggested category` badges in real-time on Dashboard
-  - Feed corrected tasks safely back to ML for continuous retraining loops
+  - Feed user-corrected task telemetry safely back to ML feedback dataset for periodic retraining
 
 ### Phase 8: Advanced Features (IN PROGRESS)
 - [ ] Hierarchical categories (grocery → fruits, dairy, beverage)
 - [x] User authentication with JWT (Clerk for Web, Custom JWT for Mobile implemented)
 - [ ] Multi-user support with database isolation
 - [ ] Notification history and audit logs
-- [ ] Custom location radius per task
+- [x] Custom location radius per task
 - [ ] Recurring reminders (weekly, monthly)
 - [x] Integration with Google Maps/Apple Maps (Implemented via Leaflet & react-native-webview)
 
@@ -126,8 +129,8 @@ Once the core phases are completely deployed, the following architectural upgrad
    - Instead of polling the server or relying solely on manual refresh, integrating WebSockets would allow the dashboard and mobile app to instantly flash celebratory popups the exact microsecond a task is marked complete.
 3. **Smart Polling Acceleration**
    - Implement dynamic GPS polling rates: check every 10 minutes while driving fast, but increase checking speed to every 1 minute when walking near known task hot-zones to save battery life.
-4. **Machine Learning Refinement**
-   - Feed the SQLite/PostgreSQL `ml_feedback` telemetry back into an automated weekly retraining pipeline, meaning the NLP model autonomously gets smarter as more users correct its mis-categorizations.
+4. **Machine Learning Retraining Pipeline**
+   - Incorporate the database feedback tables (`user_habits` & `trigger_events`) into a scheduled offline job to periodically retrain the TF-IDF vectorizer and Logistic Regression models.
 
 ---
 
@@ -152,13 +155,13 @@ Once the core phases are completely deployed, the following architectural upgrad
 ### Web (React)
 - **Framework**: React 18.2.0
 - **DOM**: react-dom 18.2.0
-- **Build Tool**: react-scripts 5.0.1
-- **Routing**: React Router (to be added)
+- **Build Tool**: react-scripts 5.0.1 (Create React App)
+- **Routing**: React Router
 - **HTTP Client**: axios 1.6.0
 - **Charts**: Recharts 2.10.0
 - **Icons**: Lucide React 0.294.0
 - **Utilities**: date-fns 2.30.0
-- **Styling**: CSS Grid/Flexbox (no CSS-in-JS needed)
+- **Styling**: Custom CSS with CSS Grid/Flexbox (no Tailwind dependency in the current repo)
 
 ### DevOps & Tools
 - **Version Control**: Git
@@ -220,6 +223,13 @@ Once the core phases are completely deployed, the following architectural upgrad
 **Overall Completion**: ~85% (Phases 1-5 & 7 Done. Phase 6 and 8 in progress)
 
 ---
+
+## 🛡️ Hardening Notes
+
+- Set `JWT_SECRET` in every non-local environment; the server will not issue or accept mobile JWTs without it.
+- Set `ML_SERVICE_URL` when the FastAPI service is deployed somewhere other than `http://localhost:5001`.
+- Set `CORS_ORIGINS` as a comma-separated list for deployed web/mobile clients.
+- Smart bundling uses Overpass first, then falls back to local PostGIS `places`; OSRM failures return a straight-line route fallback rather than breaking the request.
 
 ## 🎯 Next Immediate Steps
 

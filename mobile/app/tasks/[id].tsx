@@ -158,8 +158,8 @@ export default function TaskDetailScreen() {
     if (!task) return;
     setSubmitting(true);
     try {
-      await markTaskComplete(task.id);
       const store = places[chosenIdx ?? activeIdx] || null;
+      await markTaskComplete(task.id, store?.name || null, rating);
       await sendMLFeedback(task.id, task.text, task.category, store?.name || null, rating);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setShowDoneModal(false);

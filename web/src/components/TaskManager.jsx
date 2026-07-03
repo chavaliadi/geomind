@@ -8,6 +8,7 @@ import './TaskManager.css';
 // Uses apiUrl + onTasksUpdate + showToast props from App.jsx
 export default function TaskManager({ onTasksUpdate, apiUrl, showToast }) {
     const API_URL = apiUrl || process.env.REACT_APP_API_URL || 'http://localhost:3000';
+    const ML_URL  = process.env.REACT_APP_ML_URL || 'http://localhost:5001';
     const notify = showToast || ((msg, type) => type === 'error' ? console.error(msg) : console.log(msg));
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -60,7 +61,7 @@ export default function TaskManager({ onTasksUpdate, apiUrl, showToast }) {
             setIsPredicting(true);
             const timeoutId = setTimeout(async () => {
                 try {
-                    const response = await axios.post('http://localhost:5001/predict', { text: textToPredict });
+                    const response = await axios.post(`${ML_URL}/predict`, { text: textToPredict });
                     setSuggestedCategory(response.data.category);
                 } catch (error) {
                     console.error("ML Prediction failed:", error);
@@ -74,7 +75,7 @@ export default function TaskManager({ onTasksUpdate, apiUrl, showToast }) {
             setSuggestedCategory(null);
             setIsPredicting(false);
         }
-    }, [formData.text, formData.category]);
+    }, [formData.text, formData.category, ML_URL]);
 
     // Reset form
     const resetForm = () => {
@@ -104,7 +105,7 @@ export default function TaskManager({ onTasksUpdate, apiUrl, showToast }) {
             // Phase 7E: Feedback Loop - Check if user corrected the ML suggestion
             if (suggestedCategory && formData.category !== 'general' && formData.category !== suggestedCategory) {
                 try {
-                    await axios.post('http://localhost:5001/feedback', {
+                    await axios.post(`${ML_URL}/feedback`, {
                         text: formData.text.trim(),
                         predicted: suggestedCategory,
                         corrected: formData.category

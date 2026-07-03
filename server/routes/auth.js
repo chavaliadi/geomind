@@ -6,6 +6,11 @@ require("dotenv").config();
 
 const router = express.Router();
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  console.warn("⚠️ JWT_SECRET is not set. /auth/login and /auth/register cannot issue mobile tokens.");
+}
 
 // Ensure mobile_users table exists
 pool.query(`
@@ -20,7 +25,7 @@ pool.query(`
 const makeToken = (userId) =>
   jwt.sign(
     { userId: String(userId), source: "mobile" },
-    process.env.JWT_SECRET || 'SECRET',
+    JWT_SECRET,
     { expiresIn: "30d" }
   );
 
@@ -30,6 +35,8 @@ router.post("/register", async (req, res) => {
 
   if (!email || !password)
     return res.status(400).json({ error: "Email and password are required." });
+  if (!JWT_SECRET)
+    return res.status(503).json({ error: "Mobile auth is not configured. Set JWT_SECRET on the server." });
 
   if (password.length < 6)
     return res.status(400).json({ error: "Password must be at least 6 characters." });
@@ -63,6 +70,8 @@ router.post("/login", async (req, res) => {
 
   if (!email || !password)
     return res.status(400).json({ error: "Email and password are required." });
+  if (!JWT_SECRET)
+    return res.status(503).json({ error: "Mobile auth is not configured. Set JWT_SECRET on the server." });
 
   try {
     const result = await pool.query(

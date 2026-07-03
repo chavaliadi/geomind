@@ -239,11 +239,22 @@ export default function SmartBundle({ tasks = [] }) {
                           <div className="sb-store-name">🥇 {bundle.best_store.name} <span className="sb-store-badge">Best Match</span></div>
                           <div className="sb-store-meta">
                             <span>📍 {fmt.dist(bundle.best_store.distance_m)}</span>
+                            {bundle.best_store.preference_score > 0 && (
+                              <span className="sb-pref-badge">Preferred match</span>
+                            )}
                             {bundle.best_store.opening_hours && (
                               <span className="sb-store-hours">🕐 {bundle.best_store.opening_hours}</span>
                             )}
                           </div>
                         </div>
+                        {bundle.explainability?.length > 0 && (
+                          <div className="sb-explain">
+                            <div className="sb-explain-title">Triggered because</div>
+                            {bundle.explainability.map((reason, idx) => (
+                              <div key={idx} className="sb-explain-row">✓ {reason}</div>
+                            ))}
+                          </div>
+                        )}
                         {bundle.all_stores && bundle.all_stores.length > 1 && (
                           <div className="sb-store-alternatives">
                             <div className="sb-alt-header">Alternative options:</div>
@@ -252,6 +263,7 @@ export default function SmartBundle({ tasks = [] }) {
                                 <div className="sb-store-name">🏪 {store.name}</div>
                                 <div className="sb-store-meta">
                                   <span>📍 {fmt.dist(store.distance_m)}</span>
+                                  {store.preference_score > 0 && <span className="sb-pref-badge">History</span>}
                                 </div>
                               </div>
                             ))}

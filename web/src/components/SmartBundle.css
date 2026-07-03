@@ -193,6 +193,39 @@
 .sb-store-hours { font-style: italic; }
 .sb-no-store    { font-size: 12px; color: #d97706; font-weight: 600; margin-bottom: 10px; }
 
+
+.sb-pref-badge {
+  background: #e8fff3;
+  border: 1px solid #b8f0d0;
+  border-radius: 999px;
+  color: #16794c;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  text-transform: uppercase;
+}
+
+.sb-explain {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+}
+.sb-explain-title {
+  color: #334155;
+  font-size: 11px;
+  font-weight: 800;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.sb-explain-row {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
 /* Task list within card */
 .sb-task-list {
   display: flex;

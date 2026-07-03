@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Plus, Zap } from 'lucide-react';
 import SmartBundle from './SmartBundle';
 import './Dashboard.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
-const ML_URL  = 'http://localhost:5001';
+const ML_URL  = process.env.REACT_APP_ML_URL || 'http://localhost:5001';
 
 const CATEGORY_COLORS = {
     grocery:  '#2ecc71',

@@ -2,6 +2,11 @@ const jwt = require("jsonwebtoken");
 const { ClerkExpressWithAuth } = require("@clerk/clerk-sdk-node");
 
 const requireClerkAuth = ClerkExpressWithAuth();
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  console.warn("⚠️ JWT_SECRET is not set. Mobile JWT auth is disabled until it is configured.");
+}
 
 /**
  * Dual auth middleware:
@@ -18,7 +23,8 @@ const protect = (req, res, next) => {
 
   if (token) {
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'SECRET');
+      if (!JWT_SECRET) throw new Error("JWT_SECRET missing");
+      const decoded = jwt.verify(token, JWT_SECRET);
       if (decoded && decoded.userId && decoded.source === "mobile") {
         req.auth = { userId: decoded.userId };
         return next();
@@ -29,7 +35,7 @@ const protect = (req, res, next) => {
   }
 
   const guestId = req.headers["x-guest-id"];
-  if (guestId && guestId.startsWith("guest_")) {
+  if (typeof guestId === "string" && /^guest_[A-Za-z0-9_-]{8,80}$/.test(guestId)) {
     req.auth = { userId: guestId };
     return next();
   }

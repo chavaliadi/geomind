@@ -101,11 +101,15 @@ export async function deleteTask(id: string): Promise<void> {
   await handleResponse(res, 'Delete task');
 }
 
-export async function markTaskComplete(id: string): Promise<void> {
+export async function markTaskComplete(id: string, chosenStore?: string | null, rating?: number | null): Promise<void> {
   const res = await fetch(`${API_URL}/api/tasks/${id}`, {
     method: 'PATCH',
     headers: await getAuthHeaders(),
-    body: JSON.stringify({ status: 'completed' }),
+    body: JSON.stringify({
+      status: 'completed',
+      chosen_store: chosenStore || null,
+      rating: rating ?? null,
+    }),
   });
   await handleResponse(res, 'Complete task');
 }

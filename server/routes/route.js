@@ -11,7 +11,7 @@
 const express = require('express');
 const router  = express.Router();
 
-const OSRM_TRIP_BASE = 'https://router.project-osrm.org/trip/v1/driving';
+const OSRM_TRIP_BASE = process.env.OSRM_TRIP_BASE || 'https://router.project-osrm.org/trip/v1/driving';
 
 /**
  * POST /api/optimize-route
@@ -22,14 +22,24 @@ router.post('/', async (req, res) => {
   if (!Array.isArray(waypoints) || waypoints.length < 1) {
     return res.status(400).json({ error: 'waypoints array required (min 1 stop)' });
   }
-  if (!userLat || !userLng) {
-    return res.status(400).json({ error: 'userLat and userLng required' });
+  const parsedUserLat = parseCoordinate(userLat, -90, 90);
+  const parsedUserLng = parseCoordinate(userLng, -180, 180);
+  if (parsedUserLat === null || parsedUserLng === null) {
+    return res.status(400).json({ error: 'Valid userLat and userLng required' });
+  }
+
+  const parsedWaypoints = waypoints
+    .map(w => ({ ...w, lat: parseCoordinate(w.lat, -90, 90), lng: parseCoordinate(w.lng, -180, 180) }))
+    .filter(w => w.lat !== null && w.lng !== null);
+
+  if (parsedWaypoints.length !== waypoints.length) {
+    return res.status(400).json({ error: 'Every waypoint must include valid lat and lng' });
   }
 
   // Build coordinate string: user position first, then all stops
   const allPoints = [
-    { lat: parseFloat(userLat), lng: parseFloat(userLng), name: 'Your Location', isUser: true },
-    ...waypoints.map(w => ({ lat: parseFloat(w.lat), lng: parseFloat(w.lng), name: w.name, category: w.category })),
+    { lat: parsedUserLat, lng: parsedUserLng, name: 'Your Location', isUser: true },
+    ...parsedWaypoints,
   ];
 
   const coordStr = allPoints.map(p => `${p.lng},${p.lat}`).join(';');
@@ -49,24 +59,7 @@ router.post('/', async (req, res) => {
     const data = await osrmRes.json();
 
     if (data.code !== 'Ok' || !data.trips?.length) {
-      // Graceful fallback: return stops sorted by straight-line distance
-      const fallback = waypoints
-        .map(w => ({
-          ...w,
-          distance_m:   haversine(userLat, userLng, w.lat, w.lng),
-          duration_s:   null,
-          time_min:     null,
-        }))
-        .sort((a, b) => a.distance_m - b.distance_m);
-
-      return res.json({
-        ordered_stops:    fallback,
-        geometry:         null,
-        total_distance_m: fallback.reduce((s, w) => s + w.distance_m, 0),
-        total_time_min:   null,
-        legs:             [],
-        osrm_used:        false,
-      });
+      return res.json(buildFallbackRoute(parsedUserLat, parsedUserLng, parsedWaypoints));
     }
 
     const trip = data.trips[0];
@@ -76,7 +69,7 @@ router.post('/', async (req, res) => {
       .filter(wp => wp.waypoint_index > 0)              // skip user start (index 0)
       .sort((a, b) => a.trip_index - b.trip_index)
       .map(wp => {
-        const original = waypoints[wp.waypoint_index - 1]; // -1 to offset user position
+        const original = parsedWaypoints[wp.waypoint_index - 1]; // -1 to offset user position
         return original
           ? { ...original, lat: parseFloat(original.lat), lng: parseFloat(original.lng) }
           : null;
@@ -106,9 +99,37 @@ router.post('/', async (req, res) => {
 
   } catch (err) {
     console.error('❌ Route optimizer error:', err.message);
-    return res.status(500).json({ error: 'Route optimization failed', detail: err.message });
+    return res.json({
+      ...buildFallbackRoute(parsedUserLat, parsedUserLng, parsedWaypoints),
+      warning: 'OSRM unavailable; returned straight-line fallback route.',
+    });
   }
 });
+
+function parseCoordinate(value, min, max) {
+  const num = Number(value);
+  return Number.isFinite(num) && num >= min && num <= max ? num : null;
+}
+
+function buildFallbackRoute(userLat, userLng, waypoints) {
+  const fallback = waypoints
+    .map(w => ({
+      ...w,
+      distance_m: haversine(userLat, userLng, w.lat, w.lng),
+      duration_s: null,
+      time_min: null,
+    }))
+    .sort((a, b) => a.distance_m - b.distance_m);
+
+  return {
+    ordered_stops: fallback,
+    geometry: null,
+    total_distance_m: fallback.reduce((s, w) => s + w.distance_m, 0),
+    total_time_min: null,
+    legs: [],
+    osrm_used: false,
+  };
+}
 
 // Haversine fallback (metres)
 function haversine(lat1, lng1, lat2, lng2) {
@@ -122,3 +143,4 @@ function haversine(lat1, lng1, lat2, lng2) {
 }
 
 module.exports = router;
+module.exports._test = { haversine, buildFallbackRoute, parseCoordinate };

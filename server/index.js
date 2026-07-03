@@ -12,16 +12,23 @@ const bundleRoutes = require("./routes/bundles");
 const routeRoutes  = require("./routes/route");
 
 const app = express();
+const ML_SERVICE_URL = process.env.ML_SERVICE_URL || "http://localhost:5001";
+const DEFAULT_RADIUS_METERS = 1000;
+const MAX_RADIUS_METERS = 5000;
+const VALID_CATEGORIES = ["general", "grocery", "pharmacy", "clothing"];
+const DEFAULT_CORS_ORIGINS = [
+  "http://localhost:3001",
+  "http://localhost:3000",
+  "http://localhost:3002",
+  "http://localhost:3003",
+];
 
 app.use(cors({
-  origin: [
-    "http://localhost:3001",
-    "http://localhost:3000",
-    "http://localhost:3002",
-    "http://localhost:3003",
-  ],
+  origin: process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(",").map(origin => origin.trim()).filter(Boolean)
+    : DEFAULT_CORS_ORIGINS,
   methods: ["GET", "POST", "DELETE", "PATCH"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Guest-ID"],
 }));
 app.use(express.json({ limit: "10kb" }));
 
@@ -33,6 +40,35 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 // Expose pool on app.locals so route modules can access it
 app.locals.pool = pool;
 
+pool.query(`
+  CREATE TABLE IF NOT EXISTS user_habits (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    category VARCHAR(50),
+    item_text TEXT,
+    completed_at TIMESTAMP DEFAULT NOW()
+  );
+
+  CREATE TABLE IF NOT EXISTS trigger_events (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    task_id INT REFERENCES smart_tasks(id) ON DELETE CASCADE,
+    category VARCHAR(50),
+    place_name TEXT,
+    distance_m INT,
+    radius_meters INT,
+    priority VARCHAR(10),
+    urgency_score FLOAT,
+    reason JSONB DEFAULT '[]'::jsonb,
+    triggered_at TIMESTAMPTZ DEFAULT NOW()
+  );
+
+  ALTER TABLE user_habits
+    ADD COLUMN IF NOT EXISTS store_name TEXT,
+    ADD COLUMN IF NOT EXISTS rating INT,
+    ADD COLUMN IF NOT EXISTS task_id INT;
+`).catch(err => console.error("❌ Schema bootstrap failed:", err.message));
+
 pool.query("SELECT NOW()", (err, res) => {
   if (err) console.error("❌ DB Connection Failed:", err.message);
   else     console.log("✅ DB Connected:", res.rows[0].now);
@@ -43,19 +79,74 @@ app.use("/auth",               authRoutes);
 app.use("/api/smart-bundle",   protect, bundleRoutes);
 app.use("/api/optimize-route", protect, routeRoutes);
 
-// ── Health ──────────────────────────────────────────────────────────────────────────
 app.get("/health", async (req, res) => {
   console.log("Health endpoint hit");
+  const healthStatus = {
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    services: {
+      database: "unknown",
+      ml_service: "unknown",
+      osrm_router: "configured",
+      overpass_osm: "configured",
+    },
+  };
+
+  // 1. Database Check
   try {
-    const result = await pool.query("SELECT NOW()");
-    res.json({ status: "ok", time: result.rows[0] });
+    const dbResult = await pool.query("SELECT NOW()");
+    if (dbResult.rows.length > 0) {
+      healthStatus.services.database = "healthy";
+    } else {
+      healthStatus.services.database = "unhealthy";
+      healthStatus.status = "unhealthy";
+    }
   } catch (err) {
-    console.error("Health check error:", err);
-    res.status(500).json({ error: "DB connection failed" });
+    healthStatus.services.database = `unhealthy: ${err.message}`;
+    healthStatus.status = "unhealthy";
   }
+
+  // 2. ML Service Check
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
+    const mlRes = await fetch(`${ML_SERVICE_URL}/health`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (mlRes.ok) {
+      const mlData = await mlRes.json();
+      healthStatus.services.ml_service = mlData.model_loaded ? "healthy" : "degraded (models not loaded)";
+      if (!mlData.model_loaded) {
+        healthStatus.status = "degraded";
+      }
+    } else {
+      healthStatus.services.ml_service = `unhealthy: HTTP ${mlRes.status}`;
+      healthStatus.status = "unhealthy";
+    }
+  } catch (err) {
+    healthStatus.services.ml_service = `unhealthy: ${err.message}`;
+    healthStatus.status = "unhealthy";
+  }
+
+  // 3. Diagnostic configuration metadata
+  healthStatus.services.osrm_router = process.env.OSRM_TRIP_BASE ? "configured (custom)" : "configured (default)";
+  healthStatus.services.overpass_osm = "configured (default failover pool)";
+
+  const statusCode = healthStatus.status === "unhealthy" ? 500 : 200;
+  res.status(statusCode).json(healthStatus);
 });
 
 // ── Helper Functions ──────────────────────────────────────────────────────────
+function parseCoordinate(value, min, max) {
+  const num = Number(value);
+  return Number.isFinite(num) && num >= min && num <= max ? num : null;
+}
+
+function normalizeRadius(value) {
+  const radius = Number(value);
+  if (!Number.isFinite(radius) || radius <= 0) return DEFAULT_RADIUS_METERS;
+  return Math.min(Math.round(radius), MAX_RADIUS_METERS);
+}
+
 function getFallbackCategory(text) {
   const t = text.toLowerCase();
   const keywordMap = {
@@ -70,16 +161,14 @@ function getFallbackCategory(text) {
 }
 
 async function categorizeTask(text, category_override) {
-  const validCategories = ["general", "grocery", "pharmacy", "clothing"];
-
-  if (category_override && validCategories.includes(category_override))
+  if (category_override && VALID_CATEGORIES.includes(category_override))
     return category_override;
 
   try {
     const controller = new AbortController();
     const timeoutId  = setTimeout(() => controller.abort(), 2000);
 
-    const mlResponse = await fetch("http://localhost:5001/predict", {
+    const mlResponse = await fetch(`${ML_SERVICE_URL}/predict`, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ text }),
@@ -90,7 +179,7 @@ async function categorizeTask(text, category_override) {
     if (!mlResponse.ok) throw new Error(`ML status ${mlResponse.status}`);
 
     const mlData = await mlResponse.json();
-    if (mlData?.category && validCategories.includes(mlData.category)) {
+    if (mlData?.category && VALID_CATEGORIES.includes(mlData.category)) {
       console.log(`\n🧠 ML Category: ${mlData.category} (conf: ${mlData.confidence.toFixed(2)})`);
       return mlData.category;
     }
@@ -106,7 +195,7 @@ async function scoreUrgency(text) {
   try {
     const controller = new AbortController();
     const timeoutId  = setTimeout(() => controller.abort(), 2000);
-    const mlResponse = await fetch("http://localhost:5001/urgency", {
+    const mlResponse = await fetch(`${ML_SERVICE_URL}/urgency`, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ text }),
@@ -126,12 +215,14 @@ async function scoreUrgency(text) {
 }
 
 async function evaluateAndTriggerTask(
-  task, lat, lng,
+  task, parsedLat, parsedLng,
   categoryLastTriggered, triggeredCategories, batchMap
 ) {
   const CATEGORY_COOLDOWN_MINUTES = 30;
 
-  console.log(`  Checking task ${task.id} (${task.category}, ${task.priority} priority)...`);
+  const radiusMeters = normalizeRadius(task.radius_meters);
+
+  console.log(`  Checking task ${task.id} (${task.category}, ${task.priority} priority, ${radiusMeters}m radius)...`);
 
   if (triggeredCategories.includes(task.category)) {
     console.log(`    ⏸️ Category '${task.category}' already triggered this cycle`);
@@ -155,22 +246,49 @@ async function evaluateAndTriggerTask(
   }
 
   const match = await pool.query(
-    `SELECT name FROM places
+    `SELECT name,
+            ROUND(ST_Distance(
+              geom,
+              ST_GeogFromText('POINT(' || $1 || ' ' || $2 || ')')
+            )) AS distance_m
+     FROM places
      WHERE category = $3
+       AND (user_id = $5 OR user_id IS NULL)
        AND ST_DWithin(
          geom,
          ST_GeogFromText('POINT(' || $1 || ' ' || $2 || ')'),
-         1000
+         $4
        )
+     ORDER BY distance_m ASC
      LIMIT 1`,
-    [lng, lat, task.category]
+    [parsedLng, parsedLat, task.category, radiusMeters, task.user_id]
   );
 
   if (match.rows.length > 0) {
+    const distanceM = Number(match.rows[0].distance_m);
+    const urgencyScore = Number(task.urgency_score ?? 0.5);
+    const formattedCategory = task.category.charAt(0).toUpperCase() + task.category.slice(1);
+    const formattedPriority = task.priority.charAt(0).toUpperCase() + task.priority.slice(1);
+    const reasons = [
+      `${formattedCategory} location is close (${distanceM}m away)`,
+      `Inside configured search radius (${radiusMeters}m)`,
+      `Priority level: ${formattedPriority}`,
+    ];
+    if (urgencyScore >= 0.75) {
+      reasons.push(`Urgency: High (${(urgencyScore * 100).toFixed(0)}%)`);
+    }
+
     console.log(`    ✅ TRIGGERED: ${match.rows[0].name}`);
     await pool.query(
       `UPDATE smart_tasks SET status = 'triggered', triggered_at = NOW() WHERE id = $1`,
       [task.id]
+    );
+    await pool.query(
+      `INSERT INTO trigger_events
+         (user_id, task_id, category, place_name, distance_m, radius_meters, priority, urgency_score, reason)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
+      [task.user_id, task.id, task.category, match.rows[0].name, distanceM, radiusMeters,
+       task.priority, urgencyScore, JSON.stringify(reasons)]
     );
     triggeredCategories.push(task.category);
     if (!batchMap[task.category]) batchMap[task.category] = [];
@@ -179,6 +297,9 @@ async function evaluateAndTriggerTask(
       task:     task.raw_text,
       place:    match.rows[0].name,
       priority: task.priority,
+      distance_m: distanceM,
+      urgency_score: urgencyScore,
+      reasons,
     });
   } else {
     console.log(`    ❌ No nearby places`);
@@ -190,7 +311,8 @@ app.get("/api/tasks", protect, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT id, raw_text as text, category, priority, status,
-              triggered_at, created_at, cooldown_minutes
+              triggered_at, created_at, cooldown_minutes,
+              radius_meters, urgency_score, urgency_reason
        FROM smart_tasks
        WHERE user_id = $1
        ORDER BY created_at DESC`,
@@ -213,7 +335,7 @@ const taskCreateHandler = async (req, res) => {
 
   const validPriorities = ["high", "medium", "low"];
   const finalPriority   = validPriorities.includes(priority) ? priority : "medium";
-  const finalRadius     = Number(radius_meters) > 0 ? Number(radius_meters) : 1000;
+  const finalRadius     = normalizeRadius(radius_meters);
 
   // Run ML classification + urgency scoring in parallel
   const [category, { urgency_score, urgency_reason }] = await Promise.all([
@@ -259,9 +381,39 @@ app.delete("/api/tasks/:id", protect, async (req, res) => {
   }
 });
 
+app.get("/api/trigger-events", protect, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT
+         COUNT(*)::int AS notifications_triggered,
+         ROUND(AVG(distance_m))::int AS avg_distance_m,
+         COUNT(DISTINCT category)::int AS categories_triggered,
+         MAX(triggered_at) AS last_triggered_at
+       FROM trigger_events
+       WHERE user_id = $1`,
+      [req.auth.userId]
+    );
+
+    const byCategory = await pool.query(
+      `SELECT category, COUNT(*)::int AS count, ROUND(AVG(distance_m))::int AS avg_distance_m
+       FROM trigger_events
+       WHERE user_id = $1
+       GROUP BY category
+       ORDER BY count DESC`,
+      [req.auth.userId]
+    );
+
+    res.json({ summary: rows[0], by_category: byCategory.rows });
+  } catch (err) {
+    console.error("Trigger event stats error:", err);
+    res.status(500).json({ error: "Failed to load trigger event stats" });
+  }
+});
+
+
 app.patch("/api/tasks/:id", protect, async (req, res) => {
-  const { id }     = req.params;
-  const { status } = req.body;
+  const { id } = req.params;
+  const { status, chosen_store, rating } = req.body;
   const validStatuses = ["pending", "triggered", "completed"];
 
   if (!status || !validStatuses.includes(status))
@@ -271,12 +423,25 @@ app.patch("/api/tasks/:id", protect, async (req, res) => {
     const result = await pool.query(
       `UPDATE smart_tasks SET status = $1
        WHERE id = $2 AND user_id = $3
-       RETURNING id, raw_text as text, category, priority, status`,
+       RETURNING id, raw_text as text, raw_text, category, priority, status`,
       [status, id, req.auth.userId]
     );
     if (!result.rows.length) return res.status(404).json({ error: "Task not found" });
+
+    const task = result.rows[0];
+    if (status === "completed") {
+      await pool.query(
+        `INSERT INTO user_habits (user_id, category, item_text, store_name, rating, task_id, completed_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+        [req.auth.userId, task.category, task.raw_text || task.text,
+         typeof chosen_store === "string" ? chosen_store.slice(0, 200) : null,
+         Number.isInteger(Number(rating)) ? Number(rating) : null,
+         task.id]
+      );
+    }
+
     console.log(`✅ Task ${id} → ${status}`);
-    res.json(result.rows[0]);
+    res.json(task);
   } catch (err) {
     console.error("Error updating task:", err);
     res.status(500).json({ error: "Failed to update task" });
@@ -286,8 +451,10 @@ app.patch("/api/tasks/:id", protect, async (req, res) => {
 // ── Nearby ────────────────────────────────────────────────────────────────────
 app.get("/nearby", protect, async (req, res) => {
   const { lat, lng, category } = req.query;
-  if (!lat || !lng || !category)
-    return res.status(400).json({ error: "lat, lng, category required" });
+  const parsedLat = parseCoordinate(lat, -90, 90);
+  const parsedLng = parseCoordinate(lng, -180, 180);
+  if (parsedLat === null || parsedLng === null || !VALID_CATEGORIES.includes(category))
+    return res.status(400).json({ error: "Valid lat, lng, and category required" });
 
   try {
     const result = await pool.query(
@@ -303,7 +470,7 @@ app.get("/nearby", protect, async (req, res) => {
          AND (user_id = $4 OR user_id IS NULL)
          AND ST_DWithin(geom, ST_GeogFromText('POINT(' || $1 || ' ' || $2 || ')'), $5)
        ORDER BY distance ASC`,
-      [lng, lat, category, req.auth.userId, 5000]
+      [parsedLng, parsedLat, category, req.auth.userId, MAX_RADIUS_METERS]
     );
     res.json(result.rows);
   } catch (err) {
@@ -315,13 +482,17 @@ app.get("/nearby", protect, async (req, res) => {
 // ── Location trigger ──────────────────────────────────────────────────────────
 app.post("/location", protect, async (req, res) => {
   const { lat, lng } = req.body;
-  if (!lat || !lng) return res.status(400).json({ error: "lat and lng required" });
+  const parsedLat = parseCoordinate(lat, -90, 90);
+  const parsedLng = parseCoordinate(lng, -180, 180);
+  if (parsedLat === null || parsedLng === null)
+    return res.status(400).json({ error: "Valid lat and lng required" });
 
   console.log(`\n📍 Location: ${lat}, ${lng} — user ${req.auth.userId}`);
 
   try {
     const tasks = await pool.query(
-      `SELECT id, category, cooldown_minutes, triggered_at, priority, raw_text
+      `SELECT id, category, cooldown_minutes, triggered_at, priority, raw_text,
+              radius_meters, user_id, urgency_score
        FROM smart_tasks
        WHERE status = 'pending' AND user_id = $1
        ORDER BY
@@ -348,7 +519,7 @@ app.post("/location", protect, async (req, res) => {
 
     for (const task of tasks.rows) {
       await evaluateAndTriggerTask(
-        task, lat, lng,
+        task, parsedLat, parsedLng,
         categoryLastTriggered, triggeredCategories, batchMap
       );
     }

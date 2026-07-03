@@ -509,3 +509,103 @@ fill petrol or diesel at gas station,general,synthetic_extra
 drop key at neighbor's house,general,synthetic_extra
 errands poore karne hain aaj,general,synthetic_extra
 bank jana hai check book lene,general,synthetic_extra
+milk leke aana,grocery,coverage_hinglish
+doodh khatam ho gaya,grocery,coverage_hinglish
+aaj raat ke liye sabzi leni hai,grocery,coverage_hinglish
+ghar ke liye ration refill karna,grocery,coverage_hinglish
+atta aur chawal lena hai,grocery,coverage_hinglish
+dal tel masale kharidne hain,grocery,coverage_hinglish
+need milk urgently before breakfast,grocery,coverage_urgency
+running out of groceries at home,grocery,coverage_urgency
+grab essentials before dinner,grocery,coverage_intent
+pick up fruits on the way back,grocery,coverage_intent
+need vegetables for tonight,grocery,coverage_intent
+buy eggs bread and butter,grocery,coverage_multi_item
+stock up pantry supplies,grocery,coverage_intent
+get fresh produce from market,grocery,coverage_intent
+buy snacks for guests,grocery,coverage_intent
+need curd paneer and milk,grocery,coverage_multi_item
+sabzi mandi se tamatar pyaaz lena,grocery,coverage_hinglish
+kitchen basics are almost over,grocery,coverage_ambiguous
+pick up weekly household food items,grocery,coverage_intent
+get breakfast supplies,grocery,coverage_intent
+dawai lena hai,pharmacy,coverage_hinglish
+chemist se medicine pick karna,pharmacy,coverage_hinglish
+doctor wali prescription collect karni hai,pharmacy,coverage_hinglish
+inhaler khatam ho raha hai,pharmacy,coverage_hinglish
+insulin urgently pick up,pharmacy,coverage_urgency
+running out of tablets,pharmacy,coverage_urgency
+need prescription before tonight,pharmacy,coverage_urgency
+buy cough syrup and lozenges,pharmacy,coverage_multi_item
+get bandage antiseptic and cotton,pharmacy,coverage_multi_item
+collect allergy medicine from pharmacy,pharmacy,coverage_intent
+need eye drops before office,pharmacy,coverage_intent
+pick up pain relief spray,pharmacy,coverage_intent
+medical store se thermometer lena,pharmacy,coverage_hinglish
+need medicine for fever,pharmacy,coverage_intent
+pharmacy run for vitamins,pharmacy,coverage_intent
+refill blood pressure tablets,pharmacy,coverage_intent
+buy sanitizer masks and gloves,pharmacy,coverage_multi_item
+prescription refill due today,pharmacy,coverage_urgency
+chemist ke paas rukna hai,pharmacy,coverage_hinglish
+need first aid supplies,pharmacy,coverage_intent
+shirt kharidna hai,clothing,coverage_hinglish
+new jeans lena hai,clothing,coverage_hinglish
+festival ke liye kurta chahiye,clothing,coverage_hinglish
+office shoes buy karne hain,clothing,coverage_hinglish
+need formal shirt for interview,clothing,coverage_intent
+buy socks and belt,clothing,coverage_multi_item
+pick up new sneakers,clothing,coverage_intent
+get a dress altered or replaced,clothing,coverage_intent
+need hoodie before trip,clothing,coverage_intent
+buy wedding outfit,clothing,coverage_intent
+clothes for gym needed,clothing,coverage_intent
+grab rain jacket,clothing,coverage_intent
+need new trousers urgently,clothing,coverage_urgency
+kapdon ki shopping karni hai,clothing,coverage_hinglish
+buy sandals and slippers,clothing,coverage_multi_item
+replace old backpack and cap,clothing,coverage_intent
+look for blazer this weekend,clothing,coverage_intent
+school uniform lena hai,clothing,coverage_hinglish
+need warm sweater,clothing,coverage_intent
+pick up laundry bag from clothing store,clothing,coverage_intent
+run some errands nearby,general,coverage_ambiguous
+pick up my order,general,coverage_ambiguous
+collect parcel from shop,general,coverage_ambiguous
+stop by the market area,general,coverage_ambiguous
+need to buy something later,general,coverage_ambiguous
+remember to check the store,general,coverage_ambiguous
+visit service center,general,coverage_intent
+drop documents at office,general,coverage_intent
+collect printouts,general,coverage_intent
+go to atm before home,general,coverage_intent
+return package at counter,general,coverage_intent
+pick up repaired laptop,general,coverage_intent
+stationery lena hai,general,coverage_hinglish
+buy notebooks and pens,general,coverage_intent
+hardware store se screws lena,general,coverage_hinglish
+get phone charger,general,coverage_intent
+collect dry cleaning,general,coverage_intent
+visit bank branch,general,coverage_intent
+get passport photos,general,coverage_intent
+handle pending outside work,general,coverage_ambiguous
+pick something up,general,hardening_false_positive
+buy something,general,hardening_false_positive
+go outside,general,hardening_false_positive
+handle work,general,hardening_false_positive
+visit office,general,hardening_false_positive
+meet friend,general,hardening_false_positive
+walk the dog,general,hardening_false_positive
+do some research,general,hardening_false_positive
+read a book,general,hardening_false_positive
+clean the house,general,hardening_false_positive
+buy milk and drop laundry,grocery,hardening_mixed
+pick medicine after grocery shopping,pharmacy,hardening_mixed
+buy shoes then collect prescription,pharmacy,hardening_mixed
+buy milk and submit courier,grocery,hardening_mixed
+buy shoes and get milk,grocery,hardening_mixed
+get apples then visit doctor,grocery,hardening_mixed
+need insulin and groceries,pharmacy,hardening_mixed
+buy bread and medicine,pharmacy,hardening_mixed
+pick up prescription and grocery essentials,pharmacy,hardening_mixed
+need cold tablets and fresh fruits,pharmacy,hardening_mixed

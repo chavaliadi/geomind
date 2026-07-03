@@ -66,6 +66,7 @@ export default function TaskDetail({ apiUrl, showToast }) {
     const { id } = useParams();
     const navigate = useNavigate();
     const API_URL = apiUrl || process.env.REACT_APP_API_URL || 'http://localhost:3000';
+    const ML_URL = process.env.REACT_APP_ML_URL || 'http://localhost:5001';
     const notify = showToast || console.log;
 
     const [task, setTask] = useState(null);
@@ -178,11 +179,15 @@ export default function TaskDetail({ apiUrl, showToast }) {
         if (rating === 0) { notify('Please give a star rating before submitting', 'info'); return; }
         setSubmittingDone(true);
         try {
-            // Mark task as done
-            await axios.patch(`${API_URL}/api/tasks/${task.id}`, { status: 'completed' }).catch(() => {});
-            // Send ML feedback
             const chosenStore = chosenIdx !== null ? places[chosenIdx] : places[0];
-            await axios.post('http://localhost:5001/feedback', {
+            // Mark task as done and store lightweight preference history
+            await axios.patch(`${API_URL}/api/tasks/${task.id}`, {
+                status: 'completed',
+                chosen_store: chosenStore?.name || null,
+                rating,
+            }).catch(() => {});
+            // Send ML feedback for periodic retraining
+            await axios.post(`${ML_URL}/feedback`, {
                 text: task.raw_text || task.text,
                 chosen_store: chosenStore?.name || null,
                 chosen_category: task.category,

@@ -1,14 +1,14 @@
 # 🌍 GeoMind: Complete Project Summary
 
 ## 🎯 Purpose
-GeoMind is an intelligent location-aware task management platform that acts as a **proactive, geospatial memory assistant**. Instead of manually managing a rigid to-do list, users can spontaneously add raw thoughts (e.g., "pick up asthma inhaler"). GeoMind uses a Machine Learning Natural Language Processing (NLP) engine to automatically infer the category of the task (Pharmacy), continuously tracking the user's GPS position in the background. When the user naturally wanders near a relevant, verified location, GeoMind triggers a notification and supplies optimal driving routes to seamlessly integrate chores into their daily travel.
+GeoMind is an intelligent location-aware task management platform that acts as a **proactive, geospatial memory assistant**. Instead of manually managing a rigid to-do list, users can spontaneously add raw thoughts (e.g., "pick up asthma inhaler"). GeoMind uses a Machine Learning Natural Language Processing (NLP) engine to automatically infer the category of the task (Pharmacy), tracking the user's GPS position via foreground interval-polling (with a background geofencing roadmap for production builds). When the user naturally wanders near a relevant, verified location, GeoMind triggers a notification and supplies optimal driving routes to seamlessly integrate chores into their daily travel.
 
 ---
 
 ## 🛠️ Technology Stack
 We engineered GeoMind using a modern, scalable, and decoupled microservices architecture:
 
-- **Web Dashboard (Frontend)**: `React` + `Vite` + `TailwindCSS`
+- **Web Dashboard (Frontend)**: `React` + `Create React App` + custom CSS
   - Leverages **Leaflet** (`react-leaflet`) for interactive maps.
   - Powered by **Clerk** for secure, enterprise-grade authentication.
 - **Mobile Application (Frontend)**: `React Native` + `Expo SDK 53`
@@ -29,7 +29,7 @@ We engineered GeoMind using a modern, scalable, and decoupled microservices arch
 ---
 
 ## ⭐ What Makes This Project Stand Out?
-1. **The Active Learning Feedback Loop**: GeoMind doesn't just guess what your task is; it learns from its mistakes. If the ML engine categorizes "get apples" as `General` and you correct it after visiting a grocery store, that feedback rating is stored. The system automatically pipelines this data to retrain the ML model dynamically—making the entire app exponentially smarter based on actual human behavior.
+1. **Feedback-Driven Retraining Loop**: Captures user corrections in a dedicated SQL/CSV feedback dataset. If the model misclassifies a task category (e.g. labeling "get apples" as general) and the user corrects it in the UI, the correction telemetry is stored. This telemetry feeds a periodic offline retraining pipeline of the TF-IDF + Logistic Regression classifier, improving classification accuracy based on real-world usage.
 2. **"Ghost Mode" Frictionless Onboarding**: By intercepting server auth locally and using ephemeral `AsyncStorage` identifiers (`X-Guest-ID`), users can instantly experience the ML categorizer and Maps right after launching the app on mobile, removing the "Login Wall" bounce rate completely.
 3. **Open-Source Geospatial Supremacy**: Completely sidesteps the massive latency, high cost, and native-compilation headaches of the Google ecosystem by building a custom geospatial bridge across Leaflet, OpenStreetMap, and OSRM inside a singular unified platform.
 4. **Resilient Dual-Authentication**: The backend intelligently splits auth. A single Node.js `protect` route seamlessly reads whether the incoming request is a rich Clerk-backed Website session, a long-lived JWT from a registered mobile user, or an anonymous Mobile Guest—without dropping requests or throwing 401 errors.
@@ -49,4 +49,16 @@ We engineered GeoMind using a modern, scalable, and decoupled microservices arch
 - `server/`: Lightweight, modular API endpoints. Custom DB pooling and dual-auth middleware are cleanly abstracted away from the core routing logic.
 - `ml/`: Strictly decoupled from the primary server. It can safely crash or reboot without bringing down the user interface, acting as a true, autonomous microservice.
 - `mobile/`: Clean `expo-router` architecture. Centralized API requests in `services/api.ts` handle the heavy lifting (token appending, error catching) so the `.tsx` UI components remain completely logic-free and highly performant.
-- `web/`: Component-driven React UI relying entirely on TailwindCSS for responsive design without locking into massive proprietary CSS frameworks.
+- `web/`: Component-driven Create React App UI with custom CSS modules/files for responsive dashboard, map, task, analytics, and simulator views.
+
+
+---
+## 🔧 Credibility Fixes Applied
+
+These are the main architecture-to-code gaps that were tightened so the project is easier to defend in reviews:
+
+- **Configurable service boundaries**: The Node server now reads `ML_SERVICE_URL`, `OSRM_TRIP_BASE`, and `CORS_ORIGINS` from environment variables instead of hard-coding every integration to localhost/public defaults.
+- **Safer dual authentication**: Mobile JWT auth no longer silently falls back to an insecure default secret. Guest IDs are validated before they become `user_id` values, and CORS allows the `X-Guest-ID` header used by mobile guest mode.
+- **Radius-aware geospatial triggers**: `/location` now honors each task's `radius_meters`, validates coordinates, and returns the matched distance in notification batches.
+- **Resilient routing and bundling**: OSRM failures now return a straight-line fallback route instead of a 500. Smart bundling falls back to local PostGIS `places` when Overpass has no result or is unavailable.
+- **Dashboard correctness**: Web completion stats now count tasks explicitly marked `completed`, keeping `triggered` separate from true completion.
