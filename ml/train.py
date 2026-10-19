@@ -25,7 +25,12 @@ from similarity import build_prototype_bank
 
 
 def _load_and_merge_feedback(df: pd.DataFrame) -> pd.DataFrame:
-    """Helper to merge feedback data if it exists and is valid."""
+    """Helper to merge feedback data if it exists and is valid.
+    
+    NOTE: Retraining is a manual offline step. There is no automated scheduler,
+    worker, or trigger endpoint in the current architecture; running `python train.py`
+    manually is required to incorporate newly collected feedback into model binaries.
+    """
     if not os.path.exists(FEEDBACK_DATA_PATH):
         return df
 
