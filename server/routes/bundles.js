@@ -13,6 +13,7 @@
 
 const express  = require('express');
 const router   = express.Router();
+const { buildFallbackRoute, haversine } = require('./route');
 const OSRM_TRIP_BASE = process.env.OSRM_TRIP_BASE || 'https://router.project-osrm.org/trip/v1/driving';
 
 // ── Overpass API config ───────────────────────────────────────────────────────
@@ -30,17 +31,6 @@ const OSM_TAGS = {
   clothing: ['shop=clothes','shop=boutique','shop=fashion','shop=shoes','shop=department_store'],
   general:  ['shop=mall','shop=department_store','shop=general','amenity=shopping_centre'],
 };
-
-// ── Haversine distance (metres) ───────────────────────────────────────────────
-function haversine(lat1, lng1, lat2, lng2) {
-  const R = 6371000;
-  const toRad = d => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) ** 2
-          + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-}
 
 function parseCoordinate(value, min, max) {
   const num = Number(value);
@@ -86,7 +76,7 @@ async function fetchUserPreferences(pool, userId) {
   return rows;
 }
 
-function buildBundleReasons(bundle) {
+function buildBundleReasons(bundle, route = null) {
   const reasons = [];
   if (bundle.best_store) {
     reasons.push(`${bundle.best_store.name} is close (${bundle.best_store.distance_m}m away)`);
@@ -100,6 +90,9 @@ function buildBundleReasons(bundle) {
   }
   if (bundle.best_store?.preference_score > 0) {
     reasons.push('Frequently visited store from completion history');
+  }
+  if (route && route.osrm_used === false) {
+    reasons.push("Router offline; estimated via straight-line route");
   }
   return reasons;
 }
@@ -116,13 +109,17 @@ function buildOverpassQuery(lat, lng, radiusM, category) {
   return `[out:json][timeout:20];\n(\n${clauses}\n);\nout center;`;
 }
 
-// ── Fetch from Overpass (with endpoint failover) ──────────────────────────────
-async function fetchOverpass(query) {
+// ── Fetch from Overpass (with endpoint failover & overall deadline) ───────────
+async function fetchOverpass(query, overallSignal = null) {
   const body = `data=${encodeURIComponent(query)}`;
   for (const endpoint of OVERPASS_ENDPOINTS) {
+    if (overallSignal?.aborted) break;
     try {
       const ctrl = new AbortController();
       const tid  = setTimeout(() => ctrl.abort(), 12000);
+      const onOverallAbort = () => ctrl.abort();
+      if (overallSignal) overallSignal.addEventListener('abort', onOverallAbort, { once: true });
+
       const res  = await fetch(endpoint, {
         method:  'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -130,6 +127,7 @@ async function fetchOverpass(query) {
         signal:  ctrl.signal,
       });
       clearTimeout(tid);
+      if (overallSignal) overallSignal.removeEventListener('abort', onOverallAbort);
       if (!res.ok) continue;
       return await res.json();
     } catch { /* try next endpoint */ }
@@ -214,9 +212,15 @@ async function optimizeRoute(userLat, userLng, stops) {
     const res  = await fetch(url, { signal: ctrl.signal });
     clearTimeout(tid);
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn(`⚠️ OSRM returned HTTP ${res.status}; falling back to Haversine route.`);
+      return buildFallbackRoute(userLat, userLng, stops);
+    }
     const data = await res.json();
-    if (data.code !== 'Ok' || !data.trips?.length) return null;
+    if (data.code !== 'Ok' || !data.trips?.length) {
+      console.warn(`⚠️ OSRM code ${data?.code}; falling back to Haversine route.`);
+      return buildFallbackRoute(userLat, userLng, stops);
+    }
 
     const trip = data.trips[0];
     const leafletCoords = trip.geometry.coordinates.map(c => [c[1], c[0]]);
@@ -234,16 +238,11 @@ async function optimizeRoute(userLat, userLng, stops) {
       total_distance_m: Math.round(trip.distance),
       total_duration_s: Math.round(trip.duration),
       total_time_min:   Math.round(trip.duration / 60),
+      osrm_used:        true,
     };
-  } catch {
-    // OSRM failed: return stops in distance order as a graceful fallback
-    return {
-      ordered_stops:    stops,
-      geometry:         null,
-      total_distance_m: stops.reduce((s, st) => s + st.distance_m, 0),
-      total_duration_s: null,
-      total_time_min:   null,
-    };
+  } catch (err) {
+    console.warn(`⚠️ OSRM failed (${err.message}); falling back to Haversine route.`);
+    return buildFallbackRoute(userLat, userLng, stops);
   }
 }
 
@@ -284,20 +283,32 @@ router.get('/', async (req, res) => {
 
     const preferenceRows = await fetchUserPreferences(pool, req.auth.userId);
 
-    // 3. Fetch nearby stores per category from live Overpass API (parallel)
+    // 3. Fetch nearby stores per category from live Overpass API (parallel with 8s overall deadline)
+    // Sane bound: 8000ms. An interactive web client expects <10s response.
+    // 8s allows healthy Overpass mirrors to respond while guaranteeing fallback to local PostGIS
+    // before the client experiences a connection timeout.
+    const OVERPASS_DEADLINE_MS = 8000;
+    const overpassCtrl = new AbortController();
+    const overpassTimer = setTimeout(() => overpassCtrl.abort(), OVERPASS_DEADLINE_MS);
+
     const categoryEntries = Object.entries(byCategory);
-    const storeResults = await Promise.all(
-      categoryEntries.map(async ([cat]) => {
-        const query = buildOverpassQuery(userLat, userLng, radiusM, cat);
-        const data  = await fetchOverpass(query);
-        const overpassStores = data ? parseOverpassStores(data, cat, userLat, userLng) : [];
-        const stores = overpassStores.length
-          ? overpassStores.slice(0, 5).map(store => ({ ...store, source: 'overpass' }))
-          : await fetchLocalStores(pool, cat, req.auth.userId, userLat, userLng, radiusM);
-        const rankedStores = rankStores(stores, preferenceRows.filter(pref => pref.category === cat));
-        return { category: cat, stores: rankedStores };
-      })
-    );
+    let storeResults;
+    try {
+      storeResults = await Promise.all(
+        categoryEntries.map(async ([cat]) => {
+          const query = buildOverpassQuery(userLat, userLng, radiusM, cat);
+          const data  = await fetchOverpass(query, overpassCtrl.signal);
+          const overpassStores = data ? parseOverpassStores(data, cat, userLat, userLng) : [];
+          const stores = overpassStores.length
+            ? overpassStores.slice(0, 5).map(store => ({ ...store, source: 'overpass' }))
+            : await fetchLocalStores(pool, cat, req.auth.userId, userLat, userLng, radiusM);
+          const rankedStores = rankStores(stores, preferenceRows.filter(pref => pref.category === cat));
+          return { category: cat, stores: rankedStores };
+        })
+      );
+    } finally {
+      clearTimeout(overpassTimer);
+    }
 
     // 4. Build bundle: best store per category + tasks it serves
     const bundles = storeResults.map(({ category, stores }) => {
@@ -347,8 +358,16 @@ router.get('/', async (req, res) => {
       : stopsWithStore.length === 1
         ? { ordered_stops: stopsWithStore, geometry: null,
             total_distance_m: stopsWithStore[0].distance_m,
-            total_time_min: Math.round(stopsWithStore[0].distance_m / 80) } // ~5km/h walk
+            total_time_min: Math.round(stopsWithStore[0].distance_m / 80),
+            osrm_used: false } // ~5km/h walk, no external router needed
         : null;
+
+    // Surface router status in explainability array for every bundle
+    if (route) {
+      bundles.forEach(b => {
+        b.explainability = buildBundleReasons(b, route);
+      });
+    }
 
     // 6. Urgency summary for UI banner
     const highUrgencyTasks = tasks.filter(t => (t.urgency_score ?? 0.5) >= 0.75);
@@ -372,4 +391,12 @@ router.get('/', async (req, res) => {
 });
 
 module.exports = router;
-module.exports._test = { haversine, parseCoordinate, parseOverpassStores, buildOverpassQuery, rankStores, buildBundleReasons };
+module.exports._test = {
+  haversine,
+  parseCoordinate,
+  parseOverpassStores,
+  buildOverpassQuery,
+  rankStores,
+  buildBundleReasons,
+  optimizeRoute,
+};

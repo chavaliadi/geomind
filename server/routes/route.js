@@ -143,4 +143,6 @@ function haversine(lat1, lng1, lat2, lng2) {
 }
 
 module.exports = router;
+module.exports.buildFallbackRoute = buildFallbackRoute;
+module.exports.haversine = haversine;
 module.exports._test = { haversine, buildFallbackRoute, parseCoordinate };
