@@ -1,167 +1,124 @@
-# 🗺️ GeoMind — Context-Aware Geospatial Task Orchestration Platform
+# GeoMind
 
-GeoMind is a proactive, context-aware geospatial task orchestration platform that dynamically tracks user context and intent to optimize errand running. 
+**Errand batching and route optimization.** Type tasks in plain language — *"pick up asthma inhaler before dinner"* — and GeoMind infers what kind of place you need, groups tasks that share a destination type, finds real stores nearby, and computes an efficient visit order.
 
-Instead of requiring users to manage rigid, location-static to-do lists, GeoMind allows them to record raw thoughts (e.g., *"pick up asthma inhaler before dinner"*). The platform parses this input to infer task categories and urgency levels, matches them against real-world points of interest, batches tasks by location category, and computes optimal travel paths.
+> **Status:** working prototype. The web dashboard and backend are functional end to end. Proactive background reminders are **not** implemented — see [Known limitations](#known-limitations) before evaluating this as a finished product.
+
+<!-- TODO: add live demo link + 60s screen recording here -->
 
 ---
 
-## 🏗️ System Architecture
+## What this project is actually about
+
+The interesting engineering here isn't the text classifier — it's the orchestration layer around it. Every external dependency in the request path can fail, and the system is built so that none of them take the product down:
+
+| Dependency | Failure mode | What happens |
+|---|---|---|
+| Overpass OSM (live store data) | Outage, rate limit, timeout | Falls back to locally stored POIs in PostGIS; whole-request deadline caps the wait at 8s |
+| OSRM (route optimization) | Non-200, malformed payload, socket error | Falls back to Haversine-ordered route; the response flags which router produced it, and the user is told |
+| ML service (categorization) | Low confidence (<0.60) | Cosine similarity against category centroids assigns a label rather than failing |
+
+The response also carries an `explainability` array so the user sees *why* a store was chosen — distance, urgency, prior visits, and whether the route came from the real router or the estimate.
+
+### Spatial indexing: a bug worth describing
+
+The proximity query compares a `geometry` column against `ST_GeogFromText(...)`, which forces a `geom::geography` cast. A plain `GIST (geom)` index **cannot serve that cast** — so every location check was silently doing a full sequential scan.
+
+Benchmarked on 100,018 rows (Prayagraj bounding box, synthetic):
+
+```
+Before:  Parallel Seq Scan on places     1,135.94 ms
+After:   Bitmap Index Scan on idx_places_geom   70.53 ms
+```
+
+~16x faster. Fixed by migrating `places.geom` to `geography(Point, 4326)` so the column index is used natively, rather than adding an expression index and requiring every future query to remember the cast syntax.
+
+Raw plans: [`docs/perf/explain-before.txt`](docs/perf/explain-before.txt) · [`docs/perf/explain-after.txt`](docs/perf/explain-after.txt)
+
+---
+
+## Architecture
 
 ```mermaid
 graph TD
-    %% Clients
-    subgraph Clients ["Client Applications"]
-        Web["React Web Dashboard<br/>(Clerk Auth / Leaflet maps)"]
-        Mobile["Expo Mobile Client<br/>(Custom JWT & Guest Auth / Leaflet-in-WebView)"]
+    subgraph Clients
+        Web["React Dashboard<br/>(Clerk auth, Leaflet)"]
+        Mobile["Expo Client<br/>(JWT + guest auth)"]
     end
 
-    %% Gateway / API
-    subgraph Backend ["Express API Server Gateway (Port 3000)"]
-        AuthMid["Dual-Auth Middleware<br/>(Clerk Verification / JWT / Guest ID)"]
-        TaskEnd["Task Management Router"]
-        BundleRouter["Smart Errand Bundler"]
-        GeoTrigger["PostGIS Proximity Engine<br/>(/location)"]
+    subgraph Backend ["Express Gateway :3000"]
+        AuthMid["Dual-Auth Middleware<br/>Clerk / JWT / Guest"]
+        TaskEnd["Task Router"]
+        BundleRouter["Errand Bundler"]
+        GeoTrigger["PostGIS Proximity Engine"]
     end
 
-    %% Databases
-    subgraph Storage ["Persistent Storage Layer"]
-        DB[(PostgreSQL + PostGIS)]
+    DB[(PostgreSQL + PostGIS)]
+
+    subgraph MLService ["FastAPI ML Service :5001"]
+        MLApp["Classifier + Urgency Scorer"]
     end
 
-    %% ML Microservice
-    subgraph MLService ["FastAPI Machine Learning Service (Port 5001)"]
-        MLApp["FastAPI Engine"]
-        Vectorizer["TF-IDF Vectorizer"]
-        Classifier["Logistic Regression Model"]
-        Similarity["Cosine Similarity Fallback"]
-        Urgency["Urgency Scorer"]
-        FeedbackData[(Feedback Dataset)]
+    subgraph External
+        OSRM["OSRM /trip (TSP)"]
+        Overpass["Overpass OSM"]
     end
 
-    %% External Data
-    subgraph GeospatialProviders ["External Geospatial APIs"]
-        OSRM["Open Source Routing Machine (OSRM)<br/>(Trip Optimization TSP /trip)"]
-        Overpass["OSM Overpass API<br/>(Live Store Fetching)"]
-    end
-
-    %% Relations
-    Web & Mobile -->|HTTPS Requests| AuthMid
+    Web & Mobile --> AuthMid
     AuthMid --> TaskEnd & BundleRouter & GeoTrigger
-    TaskEnd & BundleRouter & GeoTrigger -->|pg Connection Pool| DB
-    TaskEnd -->|Parallel Predict / Urgency POST| MLApp
-    MLApp --> Vectorizer & Classifier & Similarity & Urgency
-    BundleRouter -->|OSRM TSP Route| OSRM
-    BundleRouter -->|Live Store Extraction| Overpass
-    Web & Mobile -->|Correction Feedback| MLApp
-    MLApp -->|Append Correction| FeedbackData
+    TaskEnd & BundleRouter & GeoTrigger --> DB
+    TaskEnd --> MLApp
+    BundleRouter -.->|fallback to DB| OSRM
+    BundleRouter -.->|fallback to DB| Overpass
 ```
 
----
+### Components
 
-## 🔄 Core Errand Lifecycle & Routing Workflow
+**Dual-auth gateway** — one middleware resolves three identity sources in priority order: HMAC-SHA256 JWT (`Authorization: Bearer`, mobile), guest ID (`X-Guest-ID`, matching `guest_[A-Za-z0-9_-]{8,80}`, for zero-friction onboarding), then Clerk session validation (web).
 
-```mermaid
-flowchart TD
-    %% Task Creation
-    Input[User enters: 'pick up asthma inhaler ASAP'] --> MLCall[Call FastAPI ML Service]
-    MLCall --> NLP{Confidence >= 0.60?}
-    
-    NLP -->|Yes| LogReg[Logistic Regression predicts 'pharmacy']
-    NLP -->|No| Cosine[Cosine Similarity prototype check]
-    Cosine --> Category[Assigned: Pharmacy]
-    LogReg --> Category
-    
-    Category --> Urgency[Scored urgency: 0.75 / High]
-    Urgency --> SaveTask[Store task in Postgres as pending]
-    
-    %% Location Check
-    SaveTask --> GPS[Client sends lat/lng GPS check]
-    GPS --> GeoCheck[PostGIS ST_DWithin radius check]
-    
-    GeoCheck --> Match{Proximity Matched?}
-    Match -->|Yes| Cooldown{Category Cooldown < 30 min?}
-    Match -->|No| Sleep[Sleep / Wait next interval]
-    
-    Cooldown -->|No| Batch[Batch up to 5 tasks per category]
-    Cooldown -->|Yes| Sleep
-    
-    Batch --> OverpassFetch[Fetch live POIs from Overpass OSM]
-    OverpassFetch --> OverpassResult{Stores found?}
-    
-    OverpassResult -->|Yes| Rank[Rank stores: Preference score + Distance]
-    OverpassResult -->|No| PostGISFall[Fallback: Retrieve local database PostGIS places]
-    PostGISFall --> Rank
-    
-    Rank --> OSRMRoute[Optimize visit order using OSRM /trip]
-    OSRMRoute --> RouteResult{OSRM healthy?}
-    
-    RouteResult -->|Yes| Return[Send optimized path + Explainability payload]
-    RouteResult -->|No| FallbackRoute[Fallback: Return straight-line Haversine route]
-    FallbackRoute --> Return
-```
+**Proximity engine** — spatial work is delegated to PostGIS rather than computed in JS. `ST_DWithin` against a GIST index, with per-task `cooldown_minutes` and a 30-minute per-category cooldown to prevent notification spam.
+
+**Errand bundler** — groups pending tasks by category (capped at 5 per category, priority-sorted), harvests candidate stores, ranks them, and asks OSRM to solve the visit order as a TSP.
+
+**Preference learning** — completed tasks log store name and rating to `user_habits`. Stores are scored `min(1.0, visits × 0.15 + max(0, rating − 3) × 0.2)`, so places you actually use surface first.
+
+**Task categorization** — TF-IDF (unigrams + bigrams) into L2-regularized logistic regression, trained on 611 samples across 4 categories. 90.2% accuracy, 90.6% macro F1 on a stratified 123-sample test split. Below 0.60 confidence, cosine similarity against category centroids takes over. Inference is sub-millisecond on CPU.
+
+**Why local inference instead of an LLM:** task text and location are among the most sensitive data a user can hand an app. Keeping classification local means no third-party provider ever sees either, and the service runs offline on a cheap CPU node. The tradeoff is real — an LLM would extract structure this pipeline throws away (deadlines, specific items, constraints). That's a deliberate deferral, not an oversight.
 
 ---
 
-## 🛠️ Detailed Component Deep Dive
+## Known limitations
 
-### 1. Dual-Authentication Pipeline
-The Express gateway intercepts traffic using a unified custom middleware. This pipeline dynamically detects the authentication source:
-1. **Web Client:** Resolves identity by validating the session token issued by **Clerk** (cookie-based/JWT validation).
-2. **Mobile Client (Registered):** Validates a standard **HMAC-SHA256 JWT** containing `{ userId, source: "mobile" }` under the `Authorization: Bearer <token>` header.
-3. **Mobile Client (Guest Mode):** Detects `X-Guest-ID` (matching `guest_[A-Za-z0-9_-]{8,80}`) and routes tasks to sandbox records, allowing zero-friction onboarding.
+Listed plainly because they determine whether this is useful to you.
 
-### 2. PostGIS Geospatial Engine (`/location`)
-Proximity matches avoid CPU-heavy JS calculations by delegating geospatial operations directly to PostGIS:
-* Spatial proximity is verified via coordinates matching:
-  ```sql
-  ST_DWithin(geom, ST_GeogFromText('POINT(lng lat)'), task.radius_meters)
-  ```
-* Distance queries employ spatial indices (`idx_places_geom` USING GIST) to fetch nearby stores matching the category and user ownership (`user_id = $userId OR user_id IS NULL`).
-* Individual per-task cooldowns (`cooldown_minutes`) and a 30-minute per-category cooldown prevent notification spam.
+**No background operation.** Location tracking is a foreground `setInterval` polling every 2 minutes, and push/local notifications are stubbed out (`Notifications = null`) due to native module incompatibility in Expo Go SDK 54. The app only checks proximity while open and on screen. Making this work requires an Expo Dev Client with `expo-task-manager` and `expo-location` registering OS-level geofences — a known, scoped piece of work that has not been done.
 
-### 3. Smart Outing Errand Router & OSRM TSP Solver
-* **Aggregation:** Groups pending tasks into categorical errands.
-* **Store Harvesting:** Queries Overpass OSM endpoints in parallel. If OSM is offline, it falls back to querying the local PostGIS `places` database.
-* **Lightweight Preference Learning:** Completing tasks logs store names and user ratings to `user_habits`. The routing engine scores stores dynamically based on frequency and ratings:
-  $$\text{Score} = \min(1.0, \text{visits} \times 0.15 + \max(0, \text{rating} - 3) \times 0.2)$$
-  Preferred stores bubble up to the top of the bundle routing list.
-* **Route Optimization (OSRM):** Prepend the user's GPS coordinates to the coordinates of the chosen stores and posts them to OSRM `/trip` (Traveling Salesperson Problem solver) to return a road-optimized travel route (GeoJSON geometry and leg-by-leg durations). OSRM failures fall back to straight-line Haversine routing.
+**In practice this means GeoMind currently works as a trip planner, not a proactive reminder system.** Open it, see your batched errands, get a route.
 
-### 4. NLP Task Categorizer & Urgency Engine
-* **Preprocessing:** Preprocessing is entirely offline-safe (does not trigger runtime corpus downloads). It normalizes inputs, filters stop words (preserving negations like *"no"*, *"not"*), and lemmatizes tokens.
-* **Intent Classification:** Employs a TF-IDF vectorizer to extract unigrams and bigrams, coupled with L2-regularized Logistic Regression.
-* **Cosine Similarity Fallback:** If prediction confidence falls below `0.60`, a cosine similarity fallback compares the task vector against pre-built category prototypes (centroid vectors of clean training data) to assign a classification label.
-* **Urgency Scorer:** Computes an urgency coefficient (0.0 to 1.0) using a tiered keyword mapping (Critical = `0.45`, High = `0.30`, Mild = `0.15`) plus time-decay nudges (tasks older than 3 days receive a small urgency boost).
+**Store opening hours are ignored.** Raw OSM `opening_hours` strings are passed through and displayed, but nothing parses or filters on them. The router will happily send you to a closed pharmacy.
+
+**Urgency time-decay is inert.** The scorer implements an age-based boost (+0.10 at 3 days, +0.20 at 7), but the server never passes `created_at`, and urgency is computed once at task creation when age is always zero. The code path exists and is unreachable.
+
+**Feedback never retrains anything.** Client corrections append to `ml/data/feedback_data.csv`. `train.py` can ingest that file, but no scheduler, worker, or endpoint ever invokes it. Retraining is a manual offline step.
+
+**`/location` issues N+1 queries.** Pending tasks are evaluated in a loop, each doing its own SELECT, UPDATE, and INSERT. At 50 pending tasks that's ~150 round-trips per location ping. Needs rewriting as a single batched query with a `LATERAL` join.
+
+**`/health` is partially honest.** Database and ML service are genuinely probed. OSRM and Overpass status are read from environment variables, not checked.
+
+**External services are demo infrastructure.** Public Overpass endpoints and the OSRM demo server are community resources with usage limits that forbid production or commercial traffic. Any real deployment needs self-hosted OSRM (Docker + a regional `.osm.pbf` extract) and either a self-hosted Overpass instance or a commercial POI provider.
+
+**Test coverage is thin.** 10 tests covering the OSRM fallback path and the proximity query. No frontend, mobile, or ML tests.
 
 ---
 
-## 📈 ML Service Performance & Hardened Benchmarks
-
-We enriched the training dataset with false-positive general sentences (e.g. *"go outside"*, *"handle work"*) and mixed-category phrases to optimize classification performance:
-* **Total Samples:** `611 rows`
-* **Test Split:** 123 samples (stratified 80/20 train/test split)
-* **Accuracy:** **90.24%**
-* **Macro F1-Score:** **90.59%**
-* **Class Precision & Recall:**
-  - **Grocery:** Precision `82.9%` | Recall `94.4%` | F1 `88.3%`
-  - **Pharmacy:** Precision `86.1%` | Recall `93.9%` | F1 `89.9%`
-  - **Clothing:** Precision `100.0%` | Recall `88.0%` | F1 `93.6%`
-  - **General:** Precision `100.0%` | Recall `82.8%` | F1 `90.6%`
-
-Detailed evaluation logs and matrix reports are saved to [ml/evaluation_report.md](file:///Users/srinivasch/Documents/Projects/Geomind/ml/evaluation_report.md).
-
----
-
-## 📥 Getting Started
+## Running it
 
 ### Prerequisites
-* **Node.js** (v18+)
-* **Python** (3.9+)
-* **PostgreSQL** with the **PostGIS** extension installed
+Node 18+ · Python 3.9+ · PostgreSQL with PostGIS
 
-### 1. Database Setup
-Create your database and run the migrations/seed scripts:
+### Database
+
 ```bash
 createdb geomind
 psql -d geomind -c "CREATE EXTENSION IF NOT EXISTS postgis;"
@@ -169,120 +126,97 @@ psql -d geomind -f server/migrations/001_phase1_smart_errand.sql
 psql -d geomind -f server/seed.sql
 ```
 
-### 2. Express Server Setup
-Navigate to the server directory, create your environment configuration, and boot the server:
+### Backend
+
 ```bash
 cd server
 npm install
-cp .env.example .env # Set your DATABASE_URL, JWT_SECRET, and CLERK_API_KEY
+cp .env.example .env     # set DATABASE_URL, JWT_SECRET, CLERK_SECRET_KEY
 npm start
 ```
 
-### 3. FastAPI ML Setup
-Initialize the Python environment, install dependencies, train the classifier, and run Uvicorn:
+`JWT_SECRET` is required — mobile registration and login return 503 without it.
+
+### ML service
+
 ```bash
 cd ml
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python3 train.py
-python3 evaluate.py # Generates evaluation_report.md
+python3 train.py          # writes classifier.pkl, vectorizer.pkl, prototypes.pkl
 python3 app.py
 ```
 
-### 4. React Web Dashboard Setup
-Start the dashboard frontend:
+Model binaries are not committed; `train.py` regenerates them in a few seconds.
+
+### Web dashboard
+
 ```bash
-cd web
-npm install
-npm start
+cd web && npm install && npm start
 ```
 
-### 5. Expo Mobile Client Setup
-Initialize and run the Expo client:
+### Mobile client
+
 ```bash
-cd mobile
-npm install
-npx expo start
+cd mobile && npm install && npx expo start
 ```
 
 ---
 
-## 📡 API Contract Specification
+## API
 
 ### `GET /api/smart-bundle`
-* **Query Params:** `lat` (float), `lng` (float), `radius` (integer, default 2000)
-* **Response (Annotated JSON):**
-  ```json
-  {
-    "bundles": [
-      {
-        "category": "grocery",
-        "best_store": {
-          "id": "1",
-          "name": "D-Mart Civil Lines",
-          "lat": 25.4540,
-          "lng": 81.8340,
-          "distance_m": 180,
-          "preference_score": 0.95,
-          "source": "local_postgis"
-        },
-        "tasks": [
-          {
-            "id": 12,
-            "text": "buy organic milk",
-            "priority": "high",
-            "urgency_score": "0.78",
-            "urgency_reason": "urgently, running out"
-          }
-        ],
-        "task_count": 1,
-        "avg_urgency": 0.78,
-        "store_found": true,
-        "explainability": [
-          "D-Mart Civil Lines is close (180m away)",
-          "Priority level: High",
-          "Urgency: High (78%)",
-          "Frequently visited store from completion history"
-        ]
-      }
-    ],
-    "route": {
-      "ordered_stops": [
-        { "name": "D-Mart Civil Lines", "lat": 25.4540, "lng": 81.8340 }
-      ],
-      "geometry": [
-        [25.4322, 81.7707],
-        [25.4540, 81.8340]
-      ],
-      "total_distance_m": 180,
-      "total_time_min": 2
-    }
+
+Params: `lat`, `lng`, `radius` (default 2000)
+
+```json
+{
+  "bundles": [{
+    "category": "grocery",
+    "best_store": {
+      "name": "D-Mart Civil Lines",
+      "lat": 25.4540, "lng": 81.8340,
+      "distance_m": 180,
+      "preference_score": 0.95,
+      "source": "local_postgis"
+    },
+    "tasks": [{
+      "id": 12,
+      "text": "buy organic milk",
+      "priority": "high",
+      "urgency_score": "0.78",
+      "urgency_reason": "urgently, running out"
+    }],
+    "task_count": 1,
+    "avg_urgency": 0.78,
+    "explainability": [
+      "D-Mart Civil Lines is close (180m away)",
+      "Urgency: High (78%)",
+      "Frequently visited store from completion history"
+    ]
+  }],
+  "route": {
+    "ordered_stops": [{ "name": "D-Mart Civil Lines", "lat": 25.4540, "lng": 81.8340 }],
+    "geometry": [[25.4322, 81.7707], [25.4540, 81.8340]],
+    "total_distance_m": 180,
+    "total_time_min": 2,
+    "osrm_used": true
   }
-  ```
+}
+```
+
+`osrm_used: false` means the straight-line fallback produced the route; the explainability array says so too.
 
 ### `GET /health`
-* **Response (Diagnostics):**
-  ```json
-  {
-    "status": "healthy",
-    "timestamp": "2026-07-03T17:46:40.000Z",
-    "services": {
-      "database": "healthy",
-      "ml_service": "healthy",
-      "osrm_router": "configured (default)",
-      "overpass_osm": "configured (default failover pool)"
-    }
-  }
-  ```
+
+Reports database and ML service health from live probes; OSRM and Overpass status reflect configuration only.
 
 ---
 
-## 📝 Database Schema Detail
+## Schema
 
 ```sql
--- Core Tasks table
-CREATE TABLE IF NOT EXISTS smart_tasks (
+CREATE TABLE smart_tasks (
   id               SERIAL PRIMARY KEY,
   user_id          TEXT NOT NULL,
   raw_text         TEXT NOT NULL,
@@ -291,25 +225,25 @@ CREATE TABLE IF NOT EXISTS smart_tasks (
   status           VARCHAR(20) DEFAULT 'pending',
   radius_meters    INT DEFAULT 1000,
   urgency_score    FLOAT DEFAULT 0.5,
-  urgency_reason   TEXT DEFAULT NULL,
+  urgency_reason   TEXT,
   triggered_at     TIMESTAMP,
   created_at       TIMESTAMP DEFAULT NOW(),
   cooldown_minutes INT DEFAULT 30
 );
 
--- Stored Places
-CREATE TABLE IF NOT EXISTS places (
+CREATE TABLE places (
   id          SERIAL PRIMARY KEY,
-  user_id     TEXT DEFAULT NULL,
+  user_id     TEXT,
   name        TEXT,
   category    VARCHAR(50),
-  price_level INT DEFAULT NULL,
-  rating      FLOAT DEFAULT NULL,
-  geom        geometry(Point, 4326)
+  price_level INT,
+  rating      FLOAT,
+  geom        geography(Point, 4326)   -- geography, not geometry: see indexing note above
 );
 
--- User habits/history tracking
-CREATE TABLE IF NOT EXISTS user_habits (
+CREATE INDEX idx_places_geom ON places USING GIST (geom);
+
+CREATE TABLE user_habits (
   id           SERIAL PRIMARY KEY,
   user_id      TEXT NOT NULL,
   task_id      INT,
@@ -320,8 +254,7 @@ CREATE TABLE IF NOT EXISTS user_habits (
   completed_at TIMESTAMP DEFAULT NOW()
 );
 
--- Trigger Audit log
-CREATE TABLE IF NOT EXISTS trigger_events (
+CREATE TABLE trigger_events (
   id            SERIAL PRIMARY KEY,
   user_id       TEXT NOT NULL,
   task_id       INT REFERENCES smart_tasks(id) ON DELETE CASCADE,
@@ -338,13 +271,14 @@ CREATE TABLE IF NOT EXISTS trigger_events (
 
 ---
 
-## 💬 Defensive Portfolio Positioning (Interview Q&A)
+## Roadmap
 
-#### Q: Why not use a large language model (LLM) or Vector Database for task categorization?
-> **Answer:** Deploying a large language model introduces network latency (often 1–3 seconds per query), token costs, and potential hallucinations for what is structurally a simple classification task. By building a local, decoupled TF-IDF + Logistic Regression pipeline, we achieve sub-millisecond inference times directly on cheap CPU nodes. If classification confidence falls below 60%, the cosine similarity fallback guarantees a valid match, making the system resilient and cost-effective.
+In rough priority order:
 
-#### Q: How does location tracking function on the mobile client without native GPS code?
-> **Answer:** To prevent native plugin conflicts inside standard Expo Go, we wrote a foreground interval polling framework checking position every 2 minutes when tracking is active. This serves as a functional prototype. In a production roadmap, the app would transition to an Expo Dev Build utilizing `expo-task-manager` and `expo-location` to register true OS-level background geofences (`ST_DWithin` triggers) to run location checks even when the application is locked or swiped away.
-
-#### Q: Why use OSRM instead of simple straight-line distance (Haversine)?
-> **Answer:** Simple straight-line calculation ignores physical road networks, traffic directions, and obstacles. This can result in inaccurate ETA calculations and inefficient routes. OSRM uses OpenStreetMap road graphs to solve the Traveling Salesperson Problem (TSP) via contraction hierarchies. We also designed a Haversine fallback to ensure the application remains functional if the external OSRM service experiences downtime.
+1. Background geofencing via Expo Dev Client — restores the proactive reminder premise
+2. Opening-hours parsing and filtering
+3. Self-hosted OSRM and POI source
+4. Batch the `/location` proximity evaluation into a single query
+5. Wire `created_at` through to the urgency scorer so time-decay activates
+6. Calendar integration — surface errands that fit a gap in the day
+7. Import from existing task apps (Todoist, Google Tasks, Reminders) to remove the cold-start problem
