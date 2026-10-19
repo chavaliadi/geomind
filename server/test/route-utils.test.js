@@ -101,3 +101,87 @@ test("OSRM fallback returns sorted stops by straight-line distance if OSRM fails
   assert.equal(fallback.osrm_used, false);
 });
 
+test("bundles optimizeRoute returns valid ordered route when OSRM fails (mocked failure)", async () => {
+  const originalFetch = globalThis.fetch;
+  // Mock OSRM returning HTTP 500
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 500,
+    json: async () => ({ code: "Error" }),
+  });
+
+  try {
+    const stops = [
+      { name: "Far Store", lat: 25.4558, lng: 81.8364, distance_m: 7500 },
+      { name: "Near Store", lat: 25.4323, lng: 81.7708, distance_m: 15 },
+    ];
+    const route = await bundleUtils.optimizeRoute(25.4322, 81.7707, stops);
+
+    assert.ok(route, "Expected a valid route object to be returned");
+    assert.equal(route.osrm_used, false);
+    assert.equal(route.geometry, null);
+    assert.equal(route.ordered_stops[0].name, "Near Store");
+    assert.ok(route.total_distance_m > 0);
+
+    // Verify explainability surfaces router offline note
+    const bundleReasons = bundleUtils.buildBundleReasons(
+      { best_store: { name: "Near Store", distance_m: 15 } },
+      route
+    );
+    assert.ok(
+      bundleReasons.some(r => r.includes("Router offline") || r.includes("straight-line")),
+      "Expected router fallback explanation"
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("proximity query matches expected places on known seeded fixture", async (t) => {
+  const { Pool } = require("pg");
+  const testDbUrl = process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5434/geomind";
+  const pool = new Pool({ connectionString: testDbUrl, connectionTimeoutMillis: 1500 });
+
+  let client;
+  try {
+    client = await pool.connect();
+  } catch (err) {
+    t.skip(`Skipping proximity DB test: local database not reachable (${err.message})`);
+    await pool.end();
+    return;
+  }
+
+  try {
+    // Proximity query from server/index.js:248-265
+    // Test location: Kanpur Road (25.4322, 81.7707)
+    const result = await client.query(
+      `SELECT name,
+              ROUND(ST_Distance(
+                geom,
+                ST_GeogFromText('POINT(' || $1 || ' ' || $2 || ')')
+              )) AS distance_m
+       FROM places
+       WHERE category = $3
+         AND (user_id = $5 OR user_id IS NULL)
+         AND ST_DWithin(
+           geom,
+           ST_GeogFromText('POINT(' || $1 || ' ' || $2 || ')'),
+           $4
+         )
+       ORDER BY distance_m ASC
+       LIMIT 1`,
+      [81.7707, 25.4322, "grocery", 1000, "test_user"]
+    );
+
+    assert.ok(result.rows.length > 0, "Expected at least one nearby grocery store");
+    assert.ok(
+      result.rows[0].name.includes("Kanpur Road") || result.rows[0].name.includes("Synthetic"),
+      `Expected Kanpur Road store or synthetic match, got: ${result.rows[0].name}`
+    );
+    assert.ok(result.rows[0].distance_m <= 1000, "Matched store must be within radius");
+  } finally {
+    client.release();
+    await pool.end();
+  }
+});
+
