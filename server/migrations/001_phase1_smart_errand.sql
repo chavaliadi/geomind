@@ -4,20 +4,32 @@
 -- All statements are idempotent (safe to re-run).
 -- ─────────────────────────────────────────────────────────────
 
--- 1. Add urgency_score to smart_tasks
+-- 1. Add urgency_score and user_id to smart_tasks
 --    Default 0.5 = neutral urgency for existing rows
 ALTER TABLE smart_tasks
+  ADD COLUMN IF NOT EXISTS user_id         TEXT    DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS urgency_score   FLOAT   DEFAULT 0.5,
   ADD COLUMN IF NOT EXISTS urgency_reason  TEXT    DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS radius_meters   INT     DEFAULT 1000;
 
--- 2. Enrich places table for store matching
+-- 2. Enrich places table for store matching & ensure geography type
 ALTER TABLE places
   ADD COLUMN IF NOT EXISTS price_level  INT     DEFAULT NULL,  -- 1=budget, 2=mid, 3=premium
   ADD COLUMN IF NOT EXISTS rating       FLOAT   DEFAULT NULL,  -- 0.0–5.0
   ADD COLUMN IF NOT EXISTS user_id      TEXT    DEFAULT NULL;  -- NULL = global, else user-specific
 
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'places' AND column_name = 'geom' AND udt_name = 'geometry'
+  ) THEN
+    ALTER TABLE places ALTER COLUMN geom TYPE geography(Point, 4326) USING geom::geography;
+  END IF;
+END $$;
+
 -- 3. Add spatial index on places.geom if not exists (speeds up PostGIS proximity queries)
+DROP INDEX IF EXISTS idx_places_geom;
 CREATE INDEX IF NOT EXISTS idx_places_geom ON places USING GIST (geom);
 
 -- 4. Add index on smart_tasks for user + status lookups

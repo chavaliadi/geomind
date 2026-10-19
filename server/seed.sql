@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS places (
   id       SERIAL PRIMARY KEY,
   name     TEXT,
   category VARCHAR(50),
-  geom     geometry(Point, 4326)
+  geom     geography(Point, 4326)
 );
 
 -- ─────────────────────────────────────────────

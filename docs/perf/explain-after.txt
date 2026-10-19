@@ -1,0 +1,22 @@
+                                                                                                                    QUERY PLAN                                                                                                                    
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=6476.05..6476.05 rows=1 width=33) (actual time=68.725..68.761 rows=1 loops=1)
+   Buffers: shared hit=483
+   ->  Sort  (cost=6476.05..6476.05 rows=3 width=33) (actual time=68.623..68.624 rows=1 loops=1)
+         Sort Key: (round(st_distance(geom, '0101000020E61000004C378941607554404E62105839743940'::geography, true)))
+         Sort Method: top-N heapsort  Memory: 25kB
+         Buffers: shared hit=483
+         ->  Bitmap Heap Scan on places  (cost=19.71..6476.03 rows=3 width=33) (actual time=66.319..67.681 rows=67 loops=1)
+               Filter: (((user_id = 'guest_12345678'::text) OR (user_id IS NULL)) AND ((category)::text = 'grocery'::text) AND st_dwithin(geom, '0101000020E61000004C378941607554404E62105839743940'::geography, '1000'::double precision, true))
+               Rows Removed by Filter: 383
+               Heap Blocks: exact=375
+               Buffers: shared hit=480
+               ->  Bitmap Index Scan on idx_places_geom  (cost=0.00..19.71 rows=440 width=0) (actual time=1.773..1.774 rows=450 loops=1)
+                     Index Cond: (geom && _st_expand('0101000020E61000004C378941607554404E62105839743940'::geography, '1000'::double precision))
+                     Buffers: shared hit=17
+ Planning:
+   Buffers: shared hit=227 read=7 dirtied=1
+ Planning Time: 48.068 ms
+ Execution Time: 70.532 ms
+(18 rows)
+

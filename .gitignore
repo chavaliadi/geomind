@@ -1,7 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json
-yarn.lock
 .pnp
 .pnp.js
 
@@ -9,6 +7,9 @@ yarn.lock
 .env
 .env.local
 .env.*.local
+.env.test
+.env.production.local
+!.env.example
 
 # OS
 .DS_Store
@@ -46,28 +47,28 @@ dist/
 out/
 .expo/
 .expo-shared/
+*.tsbuildinfo
+.eslintcache
 
 # Testing
 coverage/
 .nyc_output/
+.pytest_cache/
 
-# Misc
-.env.test
-.env.production.local
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-.pytest_cache/
 venv/
 env/
-.venv
+.venv/
 
 # ML — model binaries are reproducible via train.py, don't commit them
 ml/models/
-ml/__pycache__/
 
-# Webpack
-webpackrc.js
+# Geospatial data dumps (OSM extracts, OSRM build artifacts)
+*.osm.pbf
+*.osrm*
 
-#agents
-.agents
+# Agents
+.agents/

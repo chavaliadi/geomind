@@ -1,0 +1,27 @@
+                                                                                                                             QUERY PLAN                                                                                                                              
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=738807.59..738807.71 rows=1 width=33) (actual time=933.554..952.129 rows=1 loops=1)
+   Buffers: shared hit=1467 read=3
+   ->  Gather Merge  (cost=738807.59..738807.71 rows=1 width=33) (actual time=185.082..203.613 rows=1 loops=1)
+         Workers Planned: 1
+         Workers Launched: 1
+         Buffers: shared hit=1467 read=3
+         ->  Sort  (cost=737807.58..737807.59 rows=1 width=33) (actual time=64.163..64.167 rows=0 loops=2)
+               Sort Key: (round(st_distance((geom)::geography, '0101000020E61000004C378941607554404E62105839743940'::geography, true)))
+               Sort Method: top-N heapsort  Memory: 25kB
+               Buffers: shared hit=1467 read=3
+               Worker 0:  Sort Method: quicksort  Memory: 25kB
+               ->  Parallel Seq Scan on places  (cost=0.00..737807.57 rows=1 width=33) (actual time=37.305..63.119 rows=34 loops=2)
+                     Filter: (((user_id = 'guest_12345678'::text) OR (user_id IS NULL)) AND ((category)::text = 'grocery'::text) AND st_dwithin((geom)::geography, '0101000020E61000004C378941607554404E62105839743940'::geography, '1000'::double precision, true))
+                     Rows Removed by Filter: 49976
+                     Buffers: shared hit=1430 read=3
+ Planning:
+   Buffers: shared hit=199 read=2
+ Planning Time: 41.393 ms
+ JIT:
+   Functions: 9
+   Options: Inlining true, Optimization true, Expressions true, Deforming true
+   Timing: Generation 17.669 ms, Inlining 81.672 ms, Optimization 321.521 ms, Emission 345.106 ms, Total 765.967 ms
+ Execution Time: 1135.936 ms
+(23 rows)
+
